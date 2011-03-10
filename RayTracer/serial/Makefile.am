@@ -1,2 +1,2 @@
-SUBDIRS = sri ../glm-0.9.1/glm
+SUBDIRS = src 
 dist_doc_DATA = README
