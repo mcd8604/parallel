@@ -17,6 +17,7 @@ int main(int argc, char **argv)
 
 	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &p);
+	MPI_Status status;
 	
 	// For sake of simplicity
 	if( p != 2 || p != 4 || p != 8)
@@ -70,7 +71,6 @@ int main(int argc, char **argv)
 	} else {
 		// Receive data
 		
-		MPI_Status status;
 		MPI_Recv(&n, 1, MPI_INT, ROOT_RANK, TAG_ALLOC, MPI_COMM_WORLD, &status);
 		
 		data = malloc(sizeof(int) * n);
@@ -99,7 +99,7 @@ int main(int argc, char **argv)
 		{
 			int nextSum;
 			// NOTE must add loop for BASE > 2
-			MPI_Recv(&nextSum, 1, MPI_INT, my_rank + iDiff, TAG_DATA, MPI_COMM_WORLD);
+			MPI_Recv(&nextSum, 1, MPI_INT, my_rank + iDiff, TAG_DATA, MPI_COMM_WORLD, &status);
 			sum += nextSum;
 		}
 		iDiff *= BASE; 
