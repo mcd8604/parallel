@@ -1,0 +1,113 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <mpi.h>
+
+#define ROOT_RANK 0
+#define BASE 2
+#define MAX 9
+#define TAG_ALLOC 0
+#define TAG_DATA 1
+
+int my_rank, p;
+
+int main(int argc, char **argv)
+{
+	MPI_Init(&argc, &argv);
+
+	MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &p);
+	
+	// For sake of simplicity
+	if( p != 2 || p != 4 || p != 8)
+	{
+		printf("Number of nodes must be 2, 4, or 8.");
+		return 1;
+	}
+
+	int n, procN;
+	int *data;
+
+	if(my_rank == ROOT_RANK)
+	{
+		n = 0;
+		if(argc == 0)
+			return;
+		else
+			n = atoi(argv[c]);
+		
+		// Determine array length
+
+		int paddedN = n;
+		procN = n / p;
+		if(n % p > 0)
+		{
+			paddedN = ((n / p) + 1) * p;
+			procN = paddedN / p;
+		}
+
+		data = malloc(sizeof(int) * paddedN);
+
+		// Generate random data
+		
+		srand(time(NULL));
+		int i;
+		for(i = 0; i < n; ++i)
+			data[i] = rand() % MAX;
+		//for(i = n; i < paddedN; ++i)
+		//	data[i] = 0;
+
+		// Broadcast data
+
+		for(i = 0; i < p; ++p)
+		{
+			if(i != ROOT_RANK)
+			{
+				MPI_Send(paddedN, 1, MPI_INT, i, TAG_ALLOC, MPI_COMM_WORLD);
+				MPI_Send(&data, procN, i, TAG_DATA, MPI_COMM_WORLD);
+			}
+		}
+	} else {
+		// Receive data
+		
+		MPI_Status status;
+		MPI_Recv(n, 1, MPI_INT, ROOT_RANK, TAG_ALLOC, MPI_COMM_WORLD, &status);
+		
+		data = malloc(sizeof(int) * n);
+
+		procN = n / p;
+
+		MPI_Recv(&data, n, MPI_INT, ROOT_RANK, TAG_DATA, MPI_COMM_WORLD, &status);
+	}
+
+	// Calculate sum
+
+	int i;
+	int sum = 0;
+	for(i = procN * my_rank; i < procN * (my_rank); ++i)
+		sum += data[i];
+
+	// Return sum to parent node, converging at node 0
+	
+	int count = 0;
+	int iDiff = 1;
+	while(iDiff < p)
+	{
+		if(my_rank % iDiff > 0)
+			MPI_Send(sum, 1, MPI_INT, my_rank - iDiff, TAG_DATA, MPI_COMM_WORLD);
+		else
+		{
+			int nextSum;
+			// NOTE must add loop for BASE > 2
+			MPI_Recv(nextSum, 1, MPI_INT, my_rank + iDiff), MPI_TAG_ANY, MPI_COMM_WORLD);
+			sum += nextSum;
+		}
+		iDiff *= BASE; 
+	}
+
+	free(data);
+
+	MPI_Finalize();    
+
+	return 0;
+}
