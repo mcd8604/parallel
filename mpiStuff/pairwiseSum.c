@@ -34,7 +34,7 @@ int main(int argc, char **argv)
 		if(argc == 0)
 			return;
 		else
-			n = atoi(argv[c]);
+			n = atoi(argv[argc]);
 		
 		// Determine array length
 
@@ -63,21 +63,21 @@ int main(int argc, char **argv)
 		{
 			if(i != ROOT_RANK)
 			{
-				MPI_Send(paddedN, 1, MPI_INT, i, TAG_ALLOC, MPI_COMM_WORLD);
-				MPI_Send(&data, procN, i, TAG_DATA, MPI_COMM_WORLD);
+				MPI_Send(&paddedN, 1, MPI_INT, i, TAG_ALLOC, MPI_COMM_WORLD);
+				MPI_Send(data, procN, MPI_INT, i, TAG_DATA, MPI_COMM_WORLD);
 			}
 		}
 	} else {
 		// Receive data
 		
 		MPI_Status status;
-		MPI_Recv(n, 1, MPI_INT, ROOT_RANK, TAG_ALLOC, MPI_COMM_WORLD, &status);
+		MPI_Recv(&n, 1, MPI_INT, ROOT_RANK, TAG_ALLOC, MPI_COMM_WORLD, &status);
 		
 		data = malloc(sizeof(int) * n);
 
 		procN = n / p;
 
-		MPI_Recv(&data, n, MPI_INT, ROOT_RANK, TAG_DATA, MPI_COMM_WORLD, &status);
+		MPI_Recv(data, n, MPI_INT, ROOT_RANK, TAG_DATA, MPI_COMM_WORLD, &status);
 	}
 
 	// Calculate sum
@@ -99,7 +99,7 @@ int main(int argc, char **argv)
 		{
 			int nextSum;
 			// NOTE must add loop for BASE > 2
-			MPI_Recv(nextSum, 1, MPI_INT, my_rank + iDiff), MPI_TAG_ANY, MPI_COMM_WORLD);
+			MPI_Recv(nextSum, 1, MPI_INT, my_rank + iDiff, TAG_DATA, MPI_COMM_WORLD);
 			sum += nextSum;
 		}
 		iDiff *= BASE; 
