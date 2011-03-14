@@ -94,12 +94,12 @@ int main(int argc, char **argv)
 	while(iDiff < p)
 	{
 		if(my_rank % iDiff > 0)
-			MPI_Send(sum, 1, MPI_INT, my_rank - iDiff, TAG_DATA, MPI_COMM_WORLD);
+			MPI_Send(&sum, 1, MPI_INT, my_rank - iDiff, TAG_DATA, MPI_COMM_WORLD);
 		else
 		{
 			int nextSum;
 			// NOTE must add loop for BASE > 2
-			MPI_Recv(nextSum, 1, MPI_INT, my_rank + iDiff, TAG_DATA, MPI_COMM_WORLD);
+			MPI_Recv(&nextSum, 1, MPI_INT, my_rank + iDiff, TAG_DATA, MPI_COMM_WORLD);
 			sum += nextSum;
 		}
 		iDiff *= BASE; 
