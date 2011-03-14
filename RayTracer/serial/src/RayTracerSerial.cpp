@@ -49,8 +49,8 @@ void GetSceneData(Scene *s)
     floor2->SetMaterial(floorMat);
     //floor.MaxU = 10;
     //floor.MaxV = 15;
-    s->AddObject(floor1);
-    s->AddObject(floor2);
+    //s->AddObject(floor1);
+    //s->AddObject(floor2);
 
     RTObject *sphere1 = new RTSphere(Vector3(3, 4, 11), 1);
     Material *glass = new Material();
@@ -102,7 +102,7 @@ void *trace(void *threadID) {
 		}
 		pthread_mutex_unlock(&mutex);
 		glutPostRedisplay();
-		cout << "Update\n";
+		//cout << "Update\n";
 	}
 
 	delete s;
@@ -113,6 +113,10 @@ void *trace(void *threadID) {
 	return 0;
 }
 
+void idle() {
+	glutPostRedisplay();
+}
+
 int main(int argc, char** argv)
 {
 	glutInit(&argc, argv);
@@ -121,6 +125,7 @@ int main(int argc, char** argv)
 	glutCreateWindow("Ray Tracer Test GL");
 
 	glutDisplayFunc(Draw);
+	glutIdleFunc(idle);
 	//glutReshapeFunc(reshape);
 	//glutKeyboardFunc(keyboard);
 
