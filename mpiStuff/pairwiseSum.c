@@ -20,9 +20,10 @@ int main(int argc, char **argv)
 	MPI_Status status;
 	
 	// For sake of simplicity
-	if( p != 2 || p != 4 || p != 8)
+	if(!(p == 2 || p == 4 || p == 8))
 	{
-		printf("Number of nodes must be 2, 4, or 8.");
+		if(my_rank == ROOT_RANK)
+			printf("Number of nodes must be 2, 4, or 8. Given: %i\n", p);
 		return 1;
 	}
 
