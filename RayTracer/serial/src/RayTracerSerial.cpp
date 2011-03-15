@@ -29,7 +29,7 @@ void GetSceneData(Scene *s)
 {
 	// TODO: read initialization data from file, data source, or user input
 
-	s->SetViewProjection(Vector3(3, 4, 15), Vector3(3, 0, -70), Vector3(0, 1, 0),
+	s->SetViewProjection(Vector3(3, 4, 15), Vector3(3, 0, 70), Vector3(0, 1, 0),
 			45.0, RES_WIDTH, RES_HEIGHT, 0.1, 100);
 	s->SetRecursionDepth(5);
 	s->SetBackground(Vector4(.5, .7, .9, 1));
@@ -49,8 +49,8 @@ void GetSceneData(Scene *s)
     floor2->SetMaterial(floorMat);
     //floor.MaxU = 10;
     //floor.MaxV = 15;
-    //s->AddObject(floor1);
-    //s->AddObject(floor2);
+    s->AddObject(floor1);
+    s->AddObject(floor2);
 
     RTObject *sphere1 = new RTSphere(Vector3(3, 4, 11), 1);
     Material *glass = new Material();

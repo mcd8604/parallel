@@ -50,6 +50,7 @@ Vector3 RTTriangle::GetV3() { return v3; }
 Vector3 RTTriangle::GetN() { return n; }
 Vector3 RTTriangle::GetIntersectNormal(Vector3 intersectPoint) { return n; }
 
+//http://www.siggraph.org/education/materials/HyperGraph/raytrace/raypolygon_intersection.htm
 double RTTriangle::Intersects(Ray ray) {
 	double d = (ray.Direction).Dot(n);
 	if(d == 0)

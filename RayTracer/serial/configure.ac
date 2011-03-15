@@ -13,6 +13,8 @@ AC_PROG_CC
 
 # Checks for libraries.
 AC_CHECK_LIB([glut], [glutInit])
+AC_CHECK_LIB([GL], [gluUnProject])
+AC_CHECK_LIB([GLU], [gluUnProject])
 AC_CHECK_LIB([pthread], [pthread_create])
 
 # Checks for header files.

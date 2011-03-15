@@ -6,11 +6,8 @@
  */
 
 #include "Scene.h"
-
 #include <iostream>
-
-//#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include <GL/glut.h>
 
 namespace RayTracer {
 
@@ -36,61 +33,39 @@ void Scene::SetViewProjection(Vector3 pos, Vector3 tar, Vector3 up,
 	nearPlaneDistance = near;
 	farPlaneDistance = far;
 
-	// create ray table
-
-	/*Matrixd4x4 proj;
-	double range = tan((fovy / 2.0)) * near;
-	double left = -range * aspect;
-	double right = range * aspect;
-	double bottom = -range;
-	double top = range;
-
-	proj.data[0][0] = (2.0 * near) / (right - left);
-	proj.data[1][1] = (2.0 * near) / (top - bottom);
-	proj.data[2][2] = - (far + near) / (far - near);
-	proj.data[2][3] = - 1.0;
-	proj.data[3][2] = - (2.0 * far * near) / (far - near);
-
-	Matrixd4x4 model;
-	model.data[0][0] = cameraPos.x;
-	model.data[1][1] = cameraPos.y;
-	model.data[2][2] = cameraPos.z;
-	model.data[3][3] = 1;*/
-
-	//Matrixd4x4 camRot;
-	//model = model * camRot;
-
-	//Vector4 viewport = Vector4(0, 0, width, height);
-
-	glm::dmat4x4 proj = glm::gtc::matrix_transform::perspectiveFov(fovy, width, height, near, far);
-
-	glm::dvec3 vEye = glm::dvec3(cameraPos.x, cameraPos.y, cameraPos.z);
-	glm::dvec3 vCenter = glm::dvec3(cameraTarget.x, cameraTarget.y, cameraTarget.z);
-	glm::dvec3 vUp = glm::dvec3(cameraUp.x, cameraUp.y, cameraUp.z);
-	glm::dmat4x4 lookat = glm::gtc::matrix_transform::lookAt(vEye, vCenter, vUp);
-
-	glm::dvec4 viewport = glm::dvec4(0, 0, width, height);
-
 	//if(!rayTable)
 		//rayTable = new Ray[width * height];
 	rayTable.reserve(width * height);
+
+	// use OpenGL to unproject
+	GLdouble model[16];
+	GLdouble proj[16];
+	GLint view[4];
+	//glMatrixMode(GL_PROJECTION);
+	//glPushMatrix();
+	//glLoadIdentity();
+	//gluPerspective(fovy, width/height, near, far);
+	//glGetDoublev(GL_PROJECTION_MATRIX, proj);
+	//glPopMatrix();
+
+	//glMatrixMode(GL_MODELVIEW);
+//	glPushMatrix();
+	//glLoadIdentity();
+	//gluLookAt(pos.x, pos.y, pos.z, tar.x, tar.y, tar.z, up.x, up.y, up.z);
+	//glGetDoublev(GL_MODELVIEW_MATRIX, model);
+	//glGetIntegerv(GL_VIEWPORT, view);
+//	glPopMatrix();
 
 	int x, y;
 	for(y = 0; y < height; ++y)
 	{
 		for(x = 0; x < width; ++x)
 		{
-			//Vector3 s = unProject(x, y, 0, model, proj, viewport);
-			//Vector3 e = unProject(x, y, 1, model, proj, viewport);
+			Vector3 rayS;
+			Vector3 rayE;
 
-			glm::dvec3 winS = glm::dvec3(x, y, 0);
-			glm::dvec3 s = glm::unProject(winS, lookat, proj, viewport);
-
-			glm::dvec3 winE = glm::dvec3(x, y, 1);
-			glm::dvec3 e = glm::unProject(winE, lookat, proj, viewport);
-
-			Vector3 rayS = Vector3(s.x, s.y, s.z);
-			Vector3 rayE = Vector3(e.x, e.y, e.z);
+			gluUnProject(x, y, 0, model, proj, view, &rayS.x, &rayS.y, &rayS.z);
+			gluUnProject(x, y, 1, model, proj, view, &rayE.x, &rayE.y, &rayE.z);
 
 			Ray r;
 			r.Position = rayS;
@@ -99,20 +74,6 @@ void Scene::SetViewProjection(Vector3 pos, Vector3 tar, Vector3 up,
 		}
 	}
 }
-
-/*Vector3 Scene::unProject(double winX, double winY, double winZ, Matrixd4x4 model, Matrixd4x4 proj, Vector4 viewport) {
-	Matrixd4x4 inverse = (proj * model).inverse();
-	Vector4 v1 = Vector4(
-			(winX - viewport[0]) / viewport[2],
-			(winY - viewport[1]) / viewport[3],
-			winZ,
-			1);
-	v1 = v1 * 2 - 1;
-	Vector4 obj = inverse * v1;
-	obj = obj / obj.w;
-
-	return Vector3(obj.x, obj.y, obj.z);
-}*/
 
 void Scene::SetAmbient(Vector4 color) {
 	ambientLight = color;

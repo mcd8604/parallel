@@ -6,10 +6,7 @@
  */
 
 #include "RTSphere.h"
-
 #include <limits>
-
-//#include <glm/gtx/intersect.hpp>
 
 namespace RayTracer {
 
