@@ -5,6 +5,7 @@
 
 #define ROOT_RANK 0
 #define BASE 2
+#define DEFAULT_N 64
 #define MAX 9
 #define TAG_ALLOC 0
 #define TAG_DATA 1
@@ -33,10 +34,10 @@ int main(int argc, char **argv)
 	if(my_rank == ROOT_RANK)
 	{
 		n = 0;
-		if(argc == 0)
-			return;
+		if(argc == 1)
+			n = DEFAULT_N;
 		else
-			n = atoi(argv[argc]);
+			n = atoi(argv[1]);
 		
 		// Determine array length
 
@@ -66,45 +67,49 @@ int main(int argc, char **argv)
 			if(i != ROOT_RANK)
 			{
 				MPI_Send(&paddedN, 1, MPI_INT, i, TAG_ALLOC, MPI_COMM_WORLD);
-				MPI_Send(data, procN, MPI_INT, i, TAG_DATA, MPI_COMM_WORLD);
+				MPI_Send(&data, paddedN, MPI_INT, i, TAG_DATA, MPI_COMM_WORLD);
 			}
 		}
 	} else {
 		// Receive data
 		
 		MPI_Recv(&n, 1, MPI_INT, ROOT_RANK, TAG_ALLOC, MPI_COMM_WORLD, &status);
+
+		printf("NODE %i: Recv: n = %i\n", my_rank, n);
 		
 		data = malloc(sizeof(int) * n);
 
 		procN = n / p;
 
-		MPI_Recv(data, n, MPI_INT, ROOT_RANK, TAG_DATA, MPI_COMM_WORLD, &status);
+		MPI_Recv(&data, n, MPI_INT, ROOT_RANK, TAG_DATA, MPI_COMM_WORLD, &status);
 	}
 
 	// Calculate sum
 
 	int i;
 	int sum = 0;
-	for(i = procN * my_rank; i < procN * (my_rank); ++i)
+	for(i = procN * my_rank; i < procN * (my_rank + 1); ++i)
 		sum += data[i];
+
+	printf("NODE %i: sum = %i\n", my_rank, sum);
 
 	// Return sum to parent node, converging at node 0
 	
 	int count = 0;
 	int iDiff = 1;
-	while(iDiff < p)
+	while(my_rank % (iDiff * BASE) == 0 && iDiff < p)
 	{
-		if(my_rank % iDiff > 0)
-			MPI_Send(&sum, 1, MPI_INT, my_rank - iDiff, TAG_DATA, MPI_COMM_WORLD);
-		else
-		{
-			int nextSum;
-			// NOTE must add loop for BASE > 2
-			MPI_Recv(&nextSum, 1, MPI_INT, my_rank + iDiff, TAG_DATA, MPI_COMM_WORLD, &status);
-			sum += nextSum;
-		}
+		int nextSum;
+		// NOTE must add loop for BASE > 2
+		MPI_Recv(&nextSum, 1, MPI_INT, my_rank + iDiff, TAG_DATA, MPI_COMM_WORLD, &status);
+		sum += nextSum;
 		iDiff *= BASE; 
 	}
+	
+	if(my_rank != 0)
+		MPI_Send(&sum, 1, MPI_INT, my_rank - iDiff, TAG_DATA, MPI_COMM_WORLD);
+
+	printf("NODE %i: Local Sum = %i\n", my_rank, sum);
 
 	free(data);
 
