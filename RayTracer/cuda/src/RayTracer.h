@@ -52,6 +52,12 @@ struct Vector4 {
 
 // Data structures
 
+inline bool operator ==(float3 a, float3 b) { return a.x == b.x && a.y == b.y && a.z == b.z; }
+inline bool operator !=(float3 a, float3 b) { return a.x != b.x && a.y != b.y && a.z != b.z; }
+
+inline bool operator ==(float4 a, float4 b) { return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w; }
+inline bool operator !=(float4 a, float4 b) { return a.x != b.x && a.y != b.y && a.z != b.z && a.w != b.w; }
+
 struct float3x4
 {
 	float4 m[3];
@@ -85,7 +91,7 @@ struct Sphere {
 	float3 p;
 	Material m;
 	bool operator ==(Sphere s) { return r == s.r && p == s.p; }
-	bool operator !=(Sphere s) { return r != s.r && p != s.p;  }
+	bool operator !=(Sphere s) { return r != s.r && p != s.p; }
 };
 
 struct Triangle {

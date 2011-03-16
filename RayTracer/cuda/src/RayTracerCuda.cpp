@@ -1,4 +1,6 @@
 #include <GL/glut.h>
+#include <cuda_runtime.h>
+//#include <cuda_runtime_api.h>
 #include "RayTracer.h"
 
 // Screen size
@@ -15,14 +17,14 @@ float fovy;
 float near;
 float far;
 
-float4 backgroundColor;
-float4 ambientLight;
 int maxTriangles;
 Triangle *triangles;
 int maxSpheres;
 Sphere *spheres;
 int maxLights;
 Light *lights;
+float4 backgroundColor;
+float4 ambientLight;
 
 // Device data
 
@@ -40,7 +42,7 @@ void GetSceneData()
 	// TODO: read initialization data from file, data source, or user input
 
 	camPos = make_float3(3, 4, 15);
-	camtar = make_float3(3, 0, -70);
+	camTar = make_float3(3, 0, -70);
 	camUp = make_float3(0, 1, 0);
 	fovy = 45.0;
 	near = 0.1;
@@ -50,23 +52,23 @@ void GetSceneData()
 	ambientLight = make_float4(.6, .6, .6, 1);
 	
 	maxLights = 2;
-	lights = malloc(maxLights * sizeof(Light));
+	lights = (Light *)malloc(maxLights * sizeof(Light));
 	lights[0].Position = make_float3(5, 8, 15);
 	lights[0].Color = make_float4(1, 1, 1, 1);
 	lights[1].Position = make_float3(-5, 8, 15);
 	lights[1].Color = make_float4(1, 1, 1, 1);
 
 	Triangle floor1;
-	floor1.v1 = make_make_float3(8, 0, 16)
+	floor1.v1 = make_float3(8, 0, 16)
 	floor1.v2 = make_float3(-8, 0, -16);
 	floor1.v3 = make_float3(8, 0, -16); 
-	floor1.n = make_float3(0, 1, 0));
+	floor1.n = make_float3(0, 1, 0);
 	
 	Triangle floor2;
-	floor1.v1 = make_make_float3(8, 0, 16)
-	floor1.v2 = make_float3(-8, 0, -16);
-	floor1.v3 = make_float3(-8, 0, 16); 
-	floor1.n = make_float3(0, 1, 0));
+	floor2.v1 = make_float3(8, 0, 16)
+	floor2.v2 = make_float3(-8, 0, -16);
+	floor2.v3 = make_float3(-8, 0, 16); 
+	floor2.n = make_float3(0, 1, 0);
 
 	Material floorM;
 	floorM.ambientStrength = 1;
@@ -78,7 +80,7 @@ void GetSceneData()
 	floor2.m = floorM;
 
 	maxTriangles = 2;
-	triangles = malloc(maxTriangles * sizeof(Triangle));
+	triangles = (Triangle *)malloc(maxTriangles * sizeof(Triangle));
 	triangles[0] = floor1;
 	triangles[1] = floor2;
 
@@ -111,11 +113,11 @@ void GetSceneData()
     mirror.ambientColor = make_float4(.7, .7, .7, .7);
     mirror.diffuseColor = make_float4(.7, .7, .7, .7);
     mirror.specularColor = make_float4(1, 1, 1, 1);
-    mirror->kR = .75;
+    mirror.kR = .75;
     sphere2.m = mirror;
 	
 	maxSpheres = 2;
-	triangles = malloc(maxSpheres * sizeof(Sphere));
+	spheres = (Sphere *)malloc(maxSpheres * sizeof(Sphere));
 	spheres[0] = sphere1;
 	spheres[1] = sphere2;
 }
@@ -124,6 +126,7 @@ void GetSceneData()
 // copies it to device memory
 // This matrix is used to create world-space rays from screen-space pixels
 void UpdateViewMatrix()
+{
     // use OpenGL to build view matrix
 	// NOTE: modified code from NVIDIA CUDA SDK sample code, volumeRender.cpp
     GLfloat modelView[16];
@@ -179,6 +182,8 @@ void Draw() {
 	float4 *d_PixelData;
 	size_t pitch;		
 	cudaMallocPitch(&d_PixelData, &pitch, RES_WIDTH * sizeof(float), RES_HEIGHT);
+	dim3 gridSize(64, 64);
+	dim3 blockSize(16, 12);
 	trace<<<gridSize, blockSize>>>(d_PixelData, pitch);
 
 	glDrawPixels(RES_WIDTH, RES_HEIGHT, GL_RGB, GL_FLOAT, pixelData);
@@ -214,6 +219,7 @@ void trace(float4 *d_PixelData, size_t pitch) {
 
 }
 
+/*
 __device__
 float4 Illuminate(Ray ray, int depth) {
 
@@ -431,3 +437,4 @@ RTObject *getClosestIntersection(Ray ray, float3 *intersectPoint)
 
 	return intersected;
 }
+*/
