@@ -1,11 +1,11 @@
 #include <GL/glut.h>
-//#include <cuda.h>
-//#include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 #include <vector_types.h>
 #include <vector_functions.h>
 //#include <device_types.h>
 #include "RayTracer.h"
+#include <stdlib.h>
+#include <time.h>
 
 // Screen size
 #define RES_WIDTH 800.0
@@ -41,7 +41,7 @@ __device__ Triangle *d_Triangles;
 __device__ Sphere *d_Spheres;
 
 // Kernel functions
-__global__ void trace(float4 *d_PixelData, size_t pitch);
+__global__ void trace(float4 **d_PixelData, size_t pitch);
 
 void GetSceneData()
 {
@@ -188,14 +188,16 @@ void FreeSceneData()
 void Draw() {
 	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
-	float4 *d_PixelData;
+	float4 **d_PixelData;
 	size_t pitch;		
 	cudaMallocPitch((void **)&d_PixelData, &pitch, RES_WIDTH * sizeof(float), RES_HEIGHT);
 	dim3 gridSize(64, 64);
-	dim3 blockSize(16, 12);
-	//trace<<<gridSize, blockSize>>>(d_PixelData, pitch);
+	dim3 blockSize(width / 64, height / 64);
+	trace<<<gridSize, blockSize>>>(d_PixelData, pitch);
 
-	//glDrawPixels(RES_WIDTH, RES_HEIGHT, GL_RGB, GL_FLOAT, pixelData);
+	//float4 *pixelData;
+	//cudaMemcpy(&pixelData, &d_PixelData, pitch, cudaMemcpyDeviceToHost);
+	//glDrawPixels(width, height, GL_RGB, GL_FLOAT, pixelData);
 
 	glutSwapBuffers();
 }
@@ -223,15 +225,26 @@ int main(int argc, char** argv)
 
 // kernel functions
 
-__global__
-void trace(float4 *d_PixelData, size_t pitch) {
 
-}
-
-/*
 __device__
 float4 Illuminate(Ray ray, int depth) {
+	float x, y, z, w;
+	x = 0.5;
+	y = 0;
+	z = 0;
+	w = 1.0;
+	return make_float4(x, y, z, w);
+}
 
+__global__
+void trace(float4 **d_PixelData, size_t pitch) {
+	int x, y;
+	x = 0;
+	y = 0;
+	Ray ray;
+	d_PixelData[x][y] = Illuminate(ray, 1);
+}
+/*
     float3 intersectPoint;
     RTObject *rt = getClosestIntersection(ray, &intersectPoint);
 
