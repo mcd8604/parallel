@@ -50,6 +50,8 @@ struct Vector4 {
 };
 */
 
+#include <vector_types.h>
+
 // Data structures
 
 inline bool operator ==(float3 a, float3 b) { return a.x == b.x && a.y == b.y && a.z == b.z; }

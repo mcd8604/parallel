@@ -1,15 +1,19 @@
 #include <GL/glut.h>
-#include <cuda_runtime.h>
-//#include <cuda_runtime_api.h>
+//#include <cuda.h>
+//#include <cuda_runtime.h>
+#include <cuda_runtime_api.h>
+#include <vector_types.h>
+#include <vector_functions.h>
+//#include <device_types.h>
 #include "RayTracer.h"
 
 // Screen size
 #define RES_WIDTH 800.0
 #define RES_HEIGHT 600.0
 
-
 // Host data
-
+unsigned int width;
+unsigned int height;
 float3 camPos;
 float3 camTar;
 float3 camUp;
@@ -27,19 +31,24 @@ float4 backgroundColor;
 float4 ambientLight;
 
 // Device data
-
-__constant__ float d_width;
-__constant__ float d_height;
+__constant__ unsigned int d_width;
+__constant__ unsigned int d_height;
 __constant__ float3x4 d_invViewMatrix;
-__constant__ float4 d_AmbientLight
-__constant__ float4 d_BackgroundColor
+__constant__ float4 d_AmbientLight;
+__constant__ float4 d_BackgroundColor;
 __device__ Light *d_Lights;
 __device__ Triangle *d_Triangles;
 __device__ Sphere *d_Spheres;
 
+// Kernel functions
+__global__ void trace(float4 *d_PixelData, size_t pitch);
+
 void GetSceneData()
 {
 	// TODO: read initialization data from file, data source, or user input
+
+	width = RES_WIDTH;
+	height = RES_HEIGHT;
 
 	camPos = make_float3(3, 4, 15);
 	camTar = make_float3(3, 0, -70);
@@ -59,13 +68,13 @@ void GetSceneData()
 	lights[1].Color = make_float4(1, 1, 1, 1);
 
 	Triangle floor1;
-	floor1.v1 = make_float3(8, 0, 16)
+	floor1.v1 = make_float3(8, 0, 16);
 	floor1.v2 = make_float3(-8, 0, -16);
 	floor1.v3 = make_float3(8, 0, -16); 
 	floor1.n = make_float3(0, 1, 0);
 	
 	Triangle floor2;
-	floor2.v1 = make_float3(8, 0, 16)
+	floor2.v1 = make_float3(8, 0, 16);
 	floor2.v2 = make_float3(-8, 0, -16);
 	floor2.v3 = make_float3(-8, 0, 16); 
 	floor2.n = make_float3(0, 1, 0);
@@ -85,7 +94,7 @@ void GetSceneData()
 	triangles[1] = floor2;
 
     Sphere sphere1;
-	sphere1.p = make_float3(3, 4, 11)
+	sphere1.p = make_float3(3, 4, 11);
 	sphere1.r = 1;
 	// glass material
     Material glass;
@@ -144,28 +153,28 @@ void UpdateViewMatrix()
     invViewMatrix[4] = modelView[1]; invViewMatrix[5] = modelView[5]; invViewMatrix[6] = modelView[9]; invViewMatrix[7] = modelView[13];
     invViewMatrix[8] = modelView[2]; invViewMatrix[9] = modelView[6]; invViewMatrix[10] = modelView[10]; invViewMatrix[11] = modelView[14];
 
-    cudaMemcpyToSymbol(d_invViewMatrix, invViewMatrix, 12 * sizeof(float));
+    cudaMemcpy(&d_invViewMatrix, invViewMatrix, 12 * sizeof(float), cudaMemcpyHostToDevice);
 }
 
 // Copy scene data to device
 void SetSceneData()
 {
-    cudaMemcpyToSymbol(d_width, RES_WIDTH, sizeof(float));
-    cudaMemcpyToSymbol(d_height, RES_HEIGHT, sizeof(float));
-    cudaMemcpyToSymbol(d_AmbientLight, ambientLight, sizeof(float4));
-    cudaMemcpyToSymbol(d_BackgroundColor, backgroundColor, sizeof(float4));
+    cudaMemcpy(&d_width, &width, sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(&d_height, &height, sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(&d_AmbientLight, &ambientLight, sizeof(float4), cudaMemcpyHostToDevice);
+    cudaMemcpy(&d_BackgroundColor, &backgroundColor, sizeof(float4), cudaMemcpyHostToDevice);
 
 	size_t sizeLights = maxLights * sizeof(Light);
-	cudaMalloc(d_Lights, sizeLights);
-	cudaMemcpy(d_Lights, lights, sizeLights);
+	cudaMalloc((void **)&d_Lights, sizeLights);
+	cudaMemcpy(&d_Lights, lights, sizeLights, cudaMemcpyHostToDevice);
 	
 	size_t sizeTriangles = maxTriangles * sizeof(Triangle);
-	cudaMalloc(d_Triangles, sizeTriangles);
-	cudaMemcpy(d_Triangles, triangles, sizeTriangles);
+	cudaMalloc((void **)&d_Triangles, sizeTriangles);
+	cudaMemcpy(&d_Triangles, triangles, sizeTriangles, cudaMemcpyHostToDevice);
 	
 	size_t sizeSpheres = maxSpheres * sizeof(Sphere);
-	cudaMalloc(d_Spheres, sizeSpheres);
-	cudaMemcpy(d_Spheres, spheres, sizeSpheres);
+	cudaMalloc((void **)&d_Spheres, sizeSpheres);
+	cudaMemcpy(&d_Spheres, spheres, sizeSpheres, cudaMemcpyHostToDevice);
 }
 
 void FreeSceneData()
@@ -181,12 +190,12 @@ void Draw() {
 
 	float4 *d_PixelData;
 	size_t pitch;		
-	cudaMallocPitch(&d_PixelData, &pitch, RES_WIDTH * sizeof(float), RES_HEIGHT);
+	cudaMallocPitch((void **)&d_PixelData, &pitch, RES_WIDTH * sizeof(float), RES_HEIGHT);
 	dim3 gridSize(64, 64);
 	dim3 blockSize(16, 12);
 	trace<<<gridSize, blockSize>>>(d_PixelData, pitch);
 
-	glDrawPixels(RES_WIDTH, RES_HEIGHT, GL_RGB, GL_FLOAT, pixelData);
+	//glDrawPixels(RES_WIDTH, RES_HEIGHT, GL_RGB, GL_FLOAT, pixelData);
 
 	glutSwapBuffers();
 }
