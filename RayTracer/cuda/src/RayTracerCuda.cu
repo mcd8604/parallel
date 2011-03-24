@@ -18,6 +18,14 @@ float3 camPos;
 float3 camTar;
 float3 camUp;
 float fovy;
+__global__
+void trace(float4 **d_PixelData, size_t pitch) {
+	int x, y;
+	x = 0;
+	y = 0;
+	Ray ray;
+	d_PixelData[x][y] = Illuminate(ray, 1);
+}
 float near;
 float far;
 
@@ -236,14 +244,6 @@ float4 Illuminate(Ray ray, int depth) {
 	return make_float4(x, y, z, w);
 }
 
-__global__
-void trace(float4 **d_PixelData, size_t pitch) {
-	int x, y;
-	x = 0;
-	y = 0;
-	Ray ray;
-	d_PixelData[x][y] = Illuminate(ray, 1);
-}
 /*
     float3 intersectPoint;
     RTObject *rt = getClosestIntersection(ray, &intersectPoint);
@@ -461,3 +461,11 @@ RTObject *getClosestIntersection(Ray ray, float3 *intersectPoint)
 }
 */
 
+__global__
+void trace(float4 **d_PixelData, size_t pitch) {
+	int x, y;
+	x = 0;
+	y = 0;
+	Ray ray;
+	d_PixelData[x][y] = Illuminate(ray, 1);
+}
