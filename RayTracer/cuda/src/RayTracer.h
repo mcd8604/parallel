@@ -9,6 +9,7 @@
 #define RAYTRACER_H_
 
 #include <vector_types.h>
+#include <math.h>
 
 inline bool operator ==(float3 a, float3 b) { return a.x == b.x && a.y == b.y && a.z == b.z; }
 inline bool operator !=(float3 a, float3 b) { return a.x != b.x && a.y != b.y && a.z != b.z; }
@@ -16,17 +17,17 @@ inline bool operator !=(float3 a, float3 b) { return a.x != b.x && a.y != b.y &&
 inline bool operator ==(float4 a, float4 b) { return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w; }
 inline bool operator !=(float4 a, float4 b) { return a.x != b.x && a.y != b.y && a.z != b.z && a.w != b.w; }
 
-__device__ float3 operator +(float3 a, float3 b) { return make_float3(a.x + b.x, a.y + b.y, a.z + b.z); }
-__device__ float3 operator -(float3 a, float3 b) { return make_float3(a.x - b.x, a.y - b.y, a.z - b.z); }
-__device__ float3 operator *(float3 a, float3 b) { return make_float3(a.x * b.x, a.y * b.y, a.z * b.z); }
-__device__ float3 operator -(float3 a, float s) { return make_float3(a.x - s, a.y - s, a.z - s); }
-__device__ float3 operator -(float3 a) { return make_float3(-a.x , -a.y, -a.z); }
-__device__ float3 operator *(float3 a, float s) { return make_float3(a.x * s, a.y * s, a.z * s); }
-__device__ float3 operator /(float3 a, float s) { return make_float3(a.x / s, a.y / s, a.z / s); }
-__device__ float Dot(float3 a, float3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
-__device__ float Distance(float3 a, float3 b) { int dX, dY, dZ; dX = b.x - a.x; dY = b.y - a.y; dZ = b.z - a.z; return sqrt(dX * dX + dY * dY + dZ * dZ); }
-__device__ float3 Reflect(float3 v, float3 n) { return v - n * Dot(v, n) * 2; }
-__device__ float3 Normalize(float3 v) { float xx, yy, zz, d; xx = v.x * v.x; yy = v.y * v.y; zz = v.z * v.z; d = sqrt(xx + yy + zz); return make_float3( v.x / d, v.y / d, v.z / d); }
+float3 operator +(float3 a, float3 b) { return make_float3(a.x + b.x, a.y + b.y, a.z + b.z); }
+float3 operator -(float3 a, float3 b) { return make_float3(a.x - b.x, a.y - b.y, a.z - b.z); }
+float3 operator *(float3 a, float3 b) { return make_float3(a.x * b.x, a.y * b.y, a.z * b.z); }
+float3 operator -(float3 a, float s) { return make_float3(a.x - s, a.y - s, a.z - s); }
+float3 operator -(float3 a) { return make_float3(-a.x , -a.y, -a.z); }
+float3 operator *(float3 a, float s) { return make_float3(a.x * s, a.y * s, a.z * s); }
+float3 operator /(float3 a, float s) { return make_float3(a.x / s, a.y / s, a.z / s); }
+float Dot(float3 a, float3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+float Distance(float3 a, float3 b) { int dX, dY, dZ; dX = b.x - a.x; dY = b.y - a.y; dZ = b.z - a.z; return sqrt(dX * dX + dY * dY + dZ * dZ); }
+float3 Reflect(float3 v, float3 n) { return v - n * Dot(v, n) * 2; }
+float3 Normalize(float3 v) { float xx, yy, zz, d; xx = v.x * v.x; yy = v.y * v.y; zz = v.z * v.z; d = sqrt(xx + yy + zz); return make_float3( v.x / d, v.y / d, v.z / d); }
 
 struct float3x4
 {

@@ -30,6 +30,14 @@ Light *lights;
 float4 backgroundColor;
 float4 ambientLight;
 
+float4 **pixelData;
+
+void SetSceneData(float width, float height, float4 backgroundColor, float4 ambientLight,
+		unsigned int numLights, Light *lights, unsigned int numTriangles, Triangle *triangles, unsigned int numSpheres, Sphere *spheres);
+void FreeSceneData();
+void SetViewMatrix(float invViewMatrix[12]);
+void GetPixelData(float4 **pixelData);
+
 void GetSceneData()
 {
 	// TODO: read initialization data from file, data source, or user input
@@ -140,12 +148,14 @@ void UpdateViewMatrix()
     invViewMatrix[4] = modelView[1]; invViewMatrix[5] = modelView[5]; invViewMatrix[6] = modelView[9]; invViewMatrix[7] = modelView[13];
     invViewMatrix[8] = modelView[2]; invViewMatrix[9] = modelView[6]; invViewMatrix[10] = modelView[10]; invViewMatrix[11] = modelView[14];
 
-	SetViewMatrix(&invViewMatrix, 12 * sizeof(float));
+	SetViewMatrix(invViewMatrix);
 }
 
 // Draws the graphics
 void Draw() {
 	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+
+	GetPixelData(pixelData);
 
 	glutSwapBuffers();
 }
@@ -163,7 +173,9 @@ int main(int argc, char** argv)
 	SetSceneData(width, height, ambientLight, backgroundColor,
 			numLights, lights, numTriangles, triangles, numSpheres, spheres);
 	UpdateViewMatrix();
-		
+
+	pixelData = (float4 **)malloc(sizeof(float4) * width * height);
+
 	glutMainLoop();
 
 	FreeSceneData();

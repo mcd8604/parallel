@@ -22,9 +22,9 @@ __device__ Sphere *d_Spheres;
 __global__ void trace(float4 **d_PixelData, size_t pitch);
 
 // Copies the view matrix to device memory
-void SetViewMatrix(*invViewMatrix view, size_t size)
+void SetViewMatrix(float invViewMatrix[12])
 {
-    cudaMemcpy(&d_invViewMatrix, invViewMatrix, size, cudaMemcpyHostToDevice);
+    cudaMemcpy(&d_invViewMatrix, invViewMatrix, sizeof(float) * 12, cudaMemcpyHostToDevice);
 }
 
 // Copy scene data to device
@@ -60,8 +60,7 @@ void FreeSceneData()
 	cudaFree(d_Spheres);
 }
 
-// Draws the graphics
-void Draw() {
+void GetPixelData(float4** pixelData) {
 	size_t pitch;		
 	cudaMallocPitch((void **)&d_PixelData, &pitch, RES_WIDTH * sizeof(float), RES_HEIGHT);
 	dim3 gridSize(64, 64);
@@ -76,17 +75,6 @@ void trace(float4 **d_PixelData, size_t pitch) {
 	y = 0;
 	Ray ray;
 	d_PixelData[x][y] = Illuminate(ray, 1);
-}
-
-// kernel functions
-__device__
-float4 Illuminate(Ray ray, int depth) {
-	float x, y, z, w;
-	x = 0.5;
-	y = 0;
-	z = 0;
-	w = 1.0;
-	return make_float4(x, y, z, w);
 }
 
 __device__
