@@ -2,11 +2,10 @@
 #include <cuda_runtime_api.h>
 #include <vector_types.h>
 #include <vector_functions.h>
-//#include <device_types.h>
-#include "RayTracer.h"
 #include <stdlib.h>
-#include <time.h>
-#include <float.h>
+#include <stdio.h>
+
+#include "RayTracer.h"
 
 // Screen size
 #define RES_WIDTH 800.0
@@ -36,7 +35,7 @@ void SetSceneData(float width, float height, float4 backgroundColor, float4 ambi
 		unsigned int numLights, Light *lights, unsigned int numTriangles, Triangle *triangles, unsigned int numSpheres, Sphere *spheres);
 void FreeSceneData();
 void SetViewMatrix(float invViewMatrix[12]);
-void GetPixelData(float4 **pixelData);
+void GetPixelData(float4 **pixelData, dim3 gridSize, dim3 blockSize);
 
 void GetSceneData()
 {
@@ -155,7 +154,19 @@ void UpdateViewMatrix()
 void Draw() {
 	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
-	GetPixelData(pixelData);
+	dim3 gridSize(64, 64);
+	dim3 blockSize(width / gridSize.x, height / gridSize.y);
+	GetPixelData(pixelData, gridSize, blockSize);
+
+	int x, y;
+	for(x = 0; x < width; ++x)
+		for(y = 0; y < height; ++y)
+		{
+			float4 p = pixelData[x][y];
+			if(p.x > 0 || p.y > 0 || p.z > 0 || p.w > 0)
+				printf("COLOR");
+		}
+	glDrawPixels(width, height, GL_RGBA, GL_FLOAT, pixelData);
 
 	glutSwapBuffers();
 }

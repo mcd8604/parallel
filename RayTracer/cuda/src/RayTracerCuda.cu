@@ -1,25 +1,77 @@
+#include <cuda.h>
 #include <cuda_runtime_api.h>
+#include <math_constants.h>
+#include <math_functions.h>
 #include <vector_types.h>
 #include <vector_functions.h>
-//#include <device_types.h>
-#include "RayTracer.h"
 #include <stdlib.h>
 #include <time.h>
+#include "RayTracer.h"
 
+size_t pitch;
 __constant__ unsigned int d_width;
 __constant__ unsigned int d_height;
 __constant__ float3x4 d_invViewMatrix;
-__constant__ float4 d_AmbientLight;
-__constant__ float4 d_BackgroundColor;
+__constant__ float4 d_ambientLight;
+__constant__ float4 d_backgroundColor;
 __constant__ unsigned int d_numLights;
 __constant__ unsigned int d_numTriangles;
 __constant__ unsigned int d_numSpheres;
-__device__ Light *d_Lights;
-__device__ Triangle *d_Triangles;
-__device__ Sphere *d_Spheres;
+__device__ Light *d_lights;
+__device__ Triangle *d_triangles;
+__device__ Sphere *d_spheres;
+__device__ float4 **d_pixelData;
 
+__device__ bool operator ==(float3 a, float3 b) { return a.x == b.x && a.y == b.y && a.z == b.z; }
+__device__ bool operator !=(float3 a, float3 b) { return a.x != b.x && a.y != b.y && a.z != b.z; }
+__device__ float3 operator +(float3 a, float3 b) { return make_float3(a.x + b.x, a.y + b.y, a.z + b.z); }
+__device__ float3 operator -(float3 a, float3 b) { return make_float3(a.x - b.x, a.y - b.y, a.z - b.z); }
+__device__ float3 operator *(float3 a, float3 b) { return make_float3(a.x * b.x, a.y * b.y, a.z * b.z); }
+__device__ float3 operator -(float3 a, float s) { return make_float3(a.x - s, a.y - s, a.z - s); }
+__device__ float3 operator -(float3 a) { return make_float3(-a.x , -a.y, -a.z); }
+__device__ float3 operator *(float3 a, float s) { return make_float3(a.x * s, a.y * s, a.z * s); }
+__device__ float3 operator /(float3 a, float s) { return make_float3(a.x / s, a.y / s, a.z / s); }
+__device__ float Dot(float3 a, float3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+__device__ float Distance(float3 a, float3 b) { int dX, dY, dZ; dX = b.x - a.x; dY = b.y - a.y; dZ = b.z - a.z; return sqrtf(dX * dX + dY * dY + dZ * dZ); }
+__device__ float3 Reflect(float3 v, float3 n) { return v - n * Dot(v, n) * 2; }
+__device__ float3 Normalize(float3 v) { float xx, yy, zz, d; xx = v.x * v.x; yy = v.y * v.y; zz = v.z * v.z; d = sqrt(xx + yy + zz); return make_float3( v.x / d, v.y / d, v.z / d); }
+
+__device__ bool operator ==(float4 a, float4 b) { return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w; }
+__device__ bool operator !=(float4 a, float4 b) { return a.x != b.x && a.y != b.y && a.z != b.z && a.w != b.w; }
+__device__ float4 operator +(float4 a, float4 b) { return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w); }
+__device__ float4 operator -(float4 a, float4 b) { return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w); }
+__device__ float4 operator *(float4 a, float4 b) { return make_float4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w); }
+__device__ float4 operator *(float4 a, float s) { return make_float4(a.x * s, a.y * s, a.z * s, a.w * s); }
+
+__device__ bool operator ==(Sphere s1, Sphere s2) { return s1.r == s2.r && s1.p == s2.p; }
+__device__ bool operator !=(Sphere s1, Sphere s2) { return s1.r != s2.r && s1.p != s2.p; }
+
+__device__ bool operator ==(Triangle t1, Triangle t2) { return t1.v1 == t2.v1 && t1.v2 == t2.v2 && t1.v3 == t2.v3 && t1.n == t2.n; }
+__device__ bool operator !=(Triangle t1, Triangle t2) { return t1.v1 != t2.v1 && t1.v2 != t2.v2 && t1.v3 != t2.v3 && t1.n != t2.n;  }
+
+__device__ bool operator ==(Material m1, Material m2) {
+                return m1.ambientColor == m2.ambientColor &&
+                        m1.diffuseColor == m2.diffuseColor &&
+                        m1.specularColor == m2.specularColor &&
+                        m1.kR == m2.kR && m1.kT == m2.kT && m1.n == m2.n &&
+                        m1.ambientStrength == m2.ambientStrength &&
+                        m1.diffuseStrength == m2.diffuseStrength &&
+                        m1.specularStrength == m2.specularStrength; }
+        bool operator !=(Material m1, Material m2) {
+                return m1.ambientColor != m2.ambientColor &&
+                        m1.diffuseColor != m2.diffuseColor &&
+                        m1.specularColor != m2.specularColor &&
+                        m1.kR != m2.kR && m1.kT != m2.kT && m1.n != m2.n &&
+                        m1.ambientStrength != m2.ambientStrength &&
+                        m1.diffuseStrength != m2.diffuseStrength &&
+			m1.specularStrength != m2.specularStrength; }
 // Kernel functions
-__global__ void trace(float4 **d_PixelData, size_t pitch);
+__global__ void trace();
+__device__ float4 illuminate(Ray ray, int depth);
+__device__ float intersects(Sphere *s, Ray r);
+__device__ float intersects(Triangle *t, Ray r);
+__device__ void *getClosestIntersection(Ray r, float3 *intersectPoint, ObjectType *type);
+__device__ float4 calculateAmbient(Material *m);
 
 // Copies the view matrix to device memory
 void SetViewMatrix(float invViewMatrix[12])
@@ -35,56 +87,57 @@ void SetSceneData(float width, float height, float4 ambientLight, float4 backgro
 {
 	cudaMemcpy(&d_width, &width, sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(&d_height, &height, sizeof(float), cudaMemcpyHostToDevice);
-	cudaMemcpy(&d_AmbientLight, &ambientLight, sizeof(float4), cudaMemcpyHostToDevice);
-	cudaMemcpy(&d_BackgroundColor, &backgroundColor, sizeof(float4), cudaMemcpyHostToDevice);
+	cudaMemcpy(&d_ambientLight, &ambientLight, sizeof(float4), cudaMemcpyHostToDevice);
+	cudaMemcpy(&d_backgroundColor, &backgroundColor, sizeof(float4), cudaMemcpyHostToDevice);
+
+	cudaMallocPitch((void **)&d_pixelData, &pitch, d_width * sizeof(float), d_height);
 
 	size_t sizeLights = numLights * sizeof(Light);
-	cudaMalloc((void **)&d_Lights, sizeLights);
-	cudaMemcpy(&d_Lights, lights, sizeLights, cudaMemcpyHostToDevice);
+	cudaMalloc((void **)&d_lights, sizeLights);
+	cudaMemcpy(&d_lights, lights, sizeLights, cudaMemcpyHostToDevice);
 	
-	cudaMemcpy(&d_numTriangle, &numTriangles, sizeof(unsigned int), cudaMemcpyHostToDevice);
+	cudaMemcpy(&d_numTriangles, &numTriangles, sizeof(unsigned int), cudaMemcpyHostToDevice);
 	size_t sizeTriangles = numTriangles * sizeof(Triangle);
-	cudaMalloc((void **)&d_Triangles, sizeTriangles);
-	cudaMemcpy(&d_Triangles, triangles, sizeTriangles, cudaMemcpyHostToDevice);
+	cudaMalloc((void **)&d_triangles, sizeTriangles);
+	cudaMemcpy(&d_triangles, triangles, sizeTriangles, cudaMemcpyHostToDevice);
 	
 	cudaMemcpy(&d_numSpheres, &numSpheres, sizeof(unsigned int), cudaMemcpyHostToDevice);
 	size_t sizeSpheres = numSpheres * sizeof(Sphere);
-	cudaMalloc((void **)&d_Spheres, sizeSpheres);
-	cudaMemcpy(&d_Spheres, spheres, sizeSpheres, cudaMemcpyHostToDevice);
+	cudaMalloc((void **)&d_spheres, sizeSpheres);
+	cudaMemcpy(&d_spheres, spheres, sizeSpheres, cudaMemcpyHostToDevice);
 }
 
 void FreeSceneData()
 {
-	cudaFree(d_Lights);
-	cudaFree(d_Triangles);
-	cudaFree(d_Spheres);
+	cudaFree(d_lights);
+	cudaFree(d_triangles);
+	cudaFree(d_spheres);
 }
 
-void GetPixelData(float4** pixelData) {
-	size_t pitch;		
-	cudaMallocPitch((void **)&d_PixelData, &pitch, RES_WIDTH * sizeof(float), RES_HEIGHT);
-	dim3 gridSize(64, 64);
-	dim3 blockSize(width / 64, height / 64);
-	trace<<<gridSize, blockSize>>>(d_PixelData, pitch);
+void GetPixelData(float4** pixelData, dim3 gridSize, dim3 blockSize) {
+	trace<<<gridSize, blockSize>>>();
+	cudaMemcpy(&pixelData, d_pixelData, pitch, cudaMemcpyDeviceToHost);
 }
 
 __global__
-void trace(float4 **d_PixelData, size_t pitch) {
+void trace() {
 	int x, y;
-	x = 0;
-	y = 0;
+	x = blockIdx.x * gridDim.x + threadIdx.x;
+	y = blockIdx.y * gridDim.y + threadIdx.y;
 	Ray ray;
-	d_PixelData[x][y] = Illuminate(ray, 1);
+	ray.Direction = make_float3(0, 0, 0);
+	ray.Position = make_float3(0, 0, 0);
+	d_pixelData[x][y] = illuminate(ray, 1);
 }
 
 __device__
 float intersects(Triangle *t, Ray r) {
-	//http://www.siggraph.org/education/materials/HyperGraph/raytrace/rapolygon_intersection.htm
+	//http://www.siggraph.org/education/materials/HyperGraph/raytrace/raypolygon_intersection.htm
 	float3 n = t->n;
 	float d = Dot(r.Direction, n);
 	if(d == 0)
 		return -1;
-	return Dot((r.Position - v1), n) / d;
+	return Dot((r.Position - t->v1), n) / d;
 }
 
 __device__
@@ -96,7 +149,7 @@ float intersects(Sphere *s, Ray ray) {
 	// omitting a will save on calculations and reduce error
 
 	float r = s->r;
-	float p = s->p;
+	float3 p = s->p;
 	float3 diff = ray.Position - p;
 	float b = 2.0 * Dot(ray.Direction, diff);
 	float c = Dot(diff, diff) - r * r;
@@ -135,32 +188,34 @@ float intersects(Sphere *s, Ray ray) {
 /// <param name="intersectPoint">The float3 to hold the intersection data.</param>
 /// <returns>The closest intersected RTObject, or null if no RTObject is intersected.</returns>
 __device__
-void *getClosestIntersection(Ray ray, float3 *intersectPoint)
+void *getClosestIntersection(Ray ray, float3 *intersectPoint, ObjectType *type)
 {
-	float minDist = FLT_MAX;
+	float minDist = CUDART_INF_F;
 	float curDist;
-	void *isectTri = NULL;
+	void *intersected = NULL;
 
 	unsigned int i;
 	for(i = 0; i < d_numTriangles; ++i)
 	{
-		Triangle *t = &d_Triangles[i];
+		Triangle *t = &d_triangles[i];
 		curDist = intersects(t, ray);
 		if (curDist > 0 && curDist < minDist)
 		{
 			minDist = curDist;
 			intersected = (void *)t;
+			*type = T_Triangle;
 		}
 	}
 
 	for(i = 0; i < d_numSpheres; i++)
 	{
-		Sphere *s = d_Spheres[i];
+		Sphere *s = &d_spheres[i];
 		curDist = intersects(s, ray);
 		if (curDist > 0 && curDist < minDist)
 		{
 			minDist = curDist;
 			intersected = (void *)s;
+			*type = T_Sphere;
 		}
 	}
 
@@ -180,11 +235,11 @@ float4 calculateAmbient(Material *m)
 
 __device__
 float4 calculateDiffuse(Material *m, float3 worldCoords, Light l, float3 normal, float3 lightVector) {
-	float4 diffuseLight = l.LightColor;
+	float4 diffuseLight = l.Color;
 	if (m)
 		diffuseLight = diffuseLight *
 			fabs(Dot(lightVector, normal)) * 
-			m->getDiffuseColor() * 
+			m->diffuseColor * 
 			m->diffuseStrength;
 	return diffuseLight;
 }
@@ -197,7 +252,7 @@ float4 calculateSpecular(Material *m, float3 worldCoords, Light l, float3 normal
 	if (dot >= 0)
 	    return make_float4(0, 0, 0, 0);
 
-	float4 specularLight = l.LightColor;
+	float4 specularLight = l.Color;
 	
 	if (m)
 	{
@@ -226,9 +281,9 @@ float4 spawnShadowRay(float3 intersectPoint, void *intersectedObject, Material *
 	float4 specularTotal;
 
 	unsigned int i;
-	for(i = 0; i < numLights; ++i)
+	for(i = 0; i < d_numLights; ++i)
 	{
-		Light light = lights[i];
+		Light light = d_lights[i];
 
 		// Spawn a shadow ray from the intersection point to the light source
 		float3 lightVector = Normalize(light.Position - intersectPoint);
@@ -302,9 +357,10 @@ float4 spawnShadowRay(float3 intersectPoint, void *intersectedObject, Material *
 }
 
 __device__
-float4 Illuminate(Ray ray, int depth) {
+float4 illuminate(Ray ray, int depth) {
     float3 intersectPoint;
-    void *rt = getClosestIntersection(ray, &intersectPoint);
+    ObjectType type;
+    void *rt = getClosestIntersection(ray, &intersectPoint, &type);
 
     if (rt)
     {
@@ -313,22 +369,22 @@ float4 Illuminate(Ray ray, int depth) {
 	if(type == T_Sphere)	
 	{
 		Sphere *s = (Sphere *)rt;
-		intersectNormal = (intersectPoint - s.p).Normalize();
-		m = &s.m;
+		intersectNormal = Normalize(intersectPoint - s->p);
+		m = &(s->m);
 	} else {
 		Triangle *t = (Triangle *)rt;
-		intersectNormal = t.n;	
-		m = &t.m;
+		intersectNormal = t->n;	
+		m = &(t->m);
 	}
 
-        //float3 viewVector = (ray.Position - intersectPoint).Normalize();
+        //float3 viewVector = Normalize(ray.Position - intersectPoint);
         float3 viewVector = -ray.Direction;
         float4 totalLight = calculateAmbient(m);
         totalLight = totalLight + spawnShadowRay(intersectPoint, rt, m, intersectNormal, viewVector, depth);
 
         /*if (depth < recursionDepth)
         {
-            float3 incidentVector = (intersectPoint - ray.Position).Normalize();
+            float3 incidentVector = Normalize(intersectPoint - ray.Position);
 
             // Material is reflective
             if (m->kR > 0)
@@ -337,7 +393,7 @@ float4 Illuminate(Ray ray, int depth) {
                 Ray reflectionRay;
                 reflectionRay.Position = intersectPoint;
                 reflectionRay.Direction = dir;
-                totalLight = totalLight + (Illuminate(reflectionRay, depth + 1) * m->kR);
+                totalLight = totalLight + (illuminate(reflectionRay, depth + 1) * m->kR);
             }
 
             // Material is transparent
@@ -351,7 +407,7 @@ float4 Illuminate(Ray ray, int depth) {
     }
     else
     {
-        return backgroundColor;
+        return d_backgroundColor;
     }
 }
 /*
@@ -393,7 +449,7 @@ float4 spawnTransmissionRay(int depth, float3 intersectPoint, RTObject *intersec
 		Ray reflectionRay;
 		reflectionRay.Position = intersectPoint;
 		reflectionRay.Direction = dir;
-		return Illuminate(reflectionRay, depth + 1) * m->n;
+		return illuminate(reflectionRay, depth + 1) * m->n;
 	}
 	else
 	{
@@ -401,7 +457,7 @@ float4 spawnTransmissionRay(int depth, float3 intersectPoint, RTObject *intersec
 		Ray transRay;
 		transRay.Position = intersectPoint;
 		transRay.Direction = dir;
-		return Illuminate(transRay, depth + 1) * intersectedObject->GetMaterial()->kT;
+		return illuminate(transRay, depth + 1) * intersectedObject->GetMaterial()->kT;
 	}
 }
 */

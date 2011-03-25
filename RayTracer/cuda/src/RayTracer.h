@@ -9,25 +9,31 @@
 #define RAYTRACER_H_
 
 #include <vector_types.h>
-#include <math.h>
+//#include <math.h>
 
-inline bool operator ==(float3 a, float3 b) { return a.x == b.x && a.y == b.y && a.z == b.z; }
-inline bool operator !=(float3 a, float3 b) { return a.x != b.x && a.y != b.y && a.z != b.z; }
+//inline bool operator ==(float3 a, float3 b) { return a.x == b.x && a.y == b.y && a.z == b.z; }
+//inline bool operator !=(float3 a, float3 b) { return a.x != b.x && a.y != b.y && a.z != b.z; }
 
-inline bool operator ==(float4 a, float4 b) { return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w; }
-inline bool operator !=(float4 a, float4 b) { return a.x != b.x && a.y != b.y && a.z != b.z && a.w != b.w; }
+//inline bool operator ==(float4 a, float4 b) { return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w; }
+//inline bool operator !=(float4 a, float4 b) { return a.x != b.x && a.y != b.y && a.z != b.z && a.w != b.w; }
 
-float3 operator +(float3 a, float3 b) { return make_float3(a.x + b.x, a.y + b.y, a.z + b.z); }
-float3 operator -(float3 a, float3 b) { return make_float3(a.x - b.x, a.y - b.y, a.z - b.z); }
-float3 operator *(float3 a, float3 b) { return make_float3(a.x * b.x, a.y * b.y, a.z * b.z); }
-float3 operator -(float3 a, float s) { return make_float3(a.x - s, a.y - s, a.z - s); }
-float3 operator -(float3 a) { return make_float3(-a.x , -a.y, -a.z); }
-float3 operator *(float3 a, float s) { return make_float3(a.x * s, a.y * s, a.z * s); }
-float3 operator /(float3 a, float s) { return make_float3(a.x / s, a.y / s, a.z / s); }
-float Dot(float3 a, float3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
-float Distance(float3 a, float3 b) { int dX, dY, dZ; dX = b.x - a.x; dY = b.y - a.y; dZ = b.z - a.z; return sqrt(dX * dX + dY * dY + dZ * dZ); }
-float3 Reflect(float3 v, float3 n) { return v - n * Dot(v, n) * 2; }
-float3 Normalize(float3 v) { float xx, yy, zz, d; xx = v.x * v.x; yy = v.y * v.y; zz = v.z * v.z; d = sqrt(xx + yy + zz); return make_float3( v.x / d, v.y / d, v.z / d); }
+//inline float3 operator +(float3 a, float3 b) { return make_float3(a.x + b.x, a.y + b.y, a.z + b.z); }
+//inline float3 operator -(float3 a, float3 b) { return make_float3(a.x - b.x, a.y - b.y, a.z - b.z); }
+//inline float3 operator *(float3 a, float3 b) { return make_float3(a.x * b.x, a.y * b.y, a.z * b.z); }
+//inline float3 operator -(float3 a, float s) { return make_float3(a.x - s, a.y - s, a.z - s); }
+//inline float3 operator -(float3 a) { return make_float3(-a.x , -a.y, -a.z); }
+//inline float3 operator *(float3 a, float s) { return make_float3(a.x * s, a.y * s, a.z * s); }
+//inline float3 operator /(float3 a, float s) { return make_float3(a.x / s, a.y / s, a.z / s); }
+//inline float Dot(float3 a, float3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+//inline float Distance(float3 a, float3 b) { int dX, dY, dZ; dX = b.x - a.x; dY = b.y - a.y; dZ = b.z - a.z; return sqrt(dX * dX + dY * dY + dZ * dZ); }
+//inline float3 Reflect(float3 v, float3 n) { return v - n * Dot(v, n) * 2; }
+//inline float3 Normalize(float3 v) { float xx, yy, zz, d; xx = v.x * v.x; yy = v.y * v.y; zz = v.z * v.z; d = sqrt(xx + yy + zz); return make_float3( v.x / d, v.y / d, v.z / d); }
+
+//inline float4 operator +(float4 a, float4 b) { return make_float4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w); }
+//inline float4 operator -(float4 a, float4 b) { return make_float4(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w); }
+//inline float4 operator *(float4 a, float4 b) { return make_float4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w); }
+//inline float4 operator *(float4 a, float s) { return make_float4(a.x * s, a.y * s, a.z * s, a.w * s); }
+
 
 struct float3x4
 {
@@ -55,22 +61,6 @@ struct Material {
 	float diffuseStrength;
 	float specularStrength;
 	float exponent;
-        bool operator ==(Material m) {
-                return m.ambientColor == ambientColor &&
-                        m.diffuseColor == diffuseColor &&
-                        m.specularColor == specularColor &&
-                        m.kR == kR && m.kT == kT && m.n == n &&
-                        m.ambientStrength == ambientStrength &&
-                        m.diffuseStrength == diffuseStrength &&
-                        m.specularStrength == specularStrength; }
-        bool operator !=(Material m) {
-                return m.ambientColor != ambientColor &&
-                        m.diffuseColor != diffuseColor &&
-                        m.specularColor != specularColor &&
-                        m.kR != kR && m.kT != kT && m.n != n &&
-                        m.ambientStrength != ambientStrength &&
-                        m.diffuseStrength != diffuseStrength &&
-			m.specularStrength != specularStrength; }
 };
 
 enum ObjectType { T_Sphere, T_Triangle };
@@ -79,15 +69,11 @@ struct Sphere {
 	float r;
 	float3 p;
 	Material m;
-	bool operator ==(Sphere s) { return r == s.r && p == s.p; }
-	bool operator !=(Sphere s) { return r != s.r && p != s.p; }
 };
 
 struct Triangle {
 	float3 v1, v2, v3, n;
 	Material m;
-	bool operator ==(Triangle t) { return v1 == t.v1 && v2 == t.v2 && v3 == t.v3 && n == t.n; }
-	bool operator !=(Triangle t) { return v1 != t.v1 && v2 != t.v2 && v3 != t.v3 && n != t.n;  }
 };	
 
 #endif /* RAYTRACER_H_ */
