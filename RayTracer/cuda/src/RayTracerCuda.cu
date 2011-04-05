@@ -8,19 +8,22 @@
 #include <time.h>
 #include "RayTracer.h"
 
-size_t pitch;
-__constant__ unsigned int d_width;
-__constant__ unsigned int d_height;
+#include <stdio.h>
+
+typedef unsigned int uint;
+
+//size_t pitch;
+__constant__ uint d_width;
+__constant__ uint d_height;
 __constant__ float3x4 d_invViewMatrix;
 __constant__ float4 d_ambientLight;
 __constant__ float4 d_backgroundColor;
-__constant__ unsigned int d_numLights;
-__constant__ unsigned int d_numTriangles;
-__constant__ unsigned int d_numSpheres;
+__constant__ uint d_numLights;
+__constant__ uint d_numTriangles;
+__constant__ uint d_numSpheres;
 __device__ Light *d_lights;
 __device__ Triangle *d_triangles;
 __device__ Sphere *d_spheres;
-__device__ float4 **d_pixelData;
 
 __device__ bool operator ==(float3 a, float3 b) { return a.x == b.x && a.y == b.y && a.z == b.z; }
 __device__ bool operator !=(float3 a, float3 b) { return a.x != b.x && a.y != b.y && a.z != b.z; }
@@ -32,6 +35,8 @@ __device__ float3 operator -(float3 a) { return make_float3(-a.x , -a.y, -a.z); 
 __device__ float3 operator *(float3 a, float s) { return make_float3(a.x * s, a.y * s, a.z * s); }
 __device__ float3 operator /(float3 a, float s) { return make_float3(a.x / s, a.y / s, a.z / s); }
 __device__ float Dot(float3 a, float3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+__device__ float Dot(float3 a, float4 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+__device__ float Dot(float4 a, float4 b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
 __device__ float Distance(float3 a, float3 b) { int dX, dY, dZ; dX = b.x - a.x; dY = b.y - a.y; dZ = b.z - a.z; return sqrtf(dX * dX + dY * dY + dZ * dZ); }
 __device__ float3 Reflect(float3 v, float3 n) { return v - n * Dot(v, n) * 2; }
 __device__ float3 Normalize(float3 v) { float xx, yy, zz, d; xx = v.x * v.x; yy = v.y * v.y; zz = v.z * v.z; d = sqrt(xx + yy + zz); return make_float3( v.x / d, v.y / d, v.z / d); }
@@ -43,6 +48,22 @@ __device__ float4 operator -(float4 a, float4 b) { return make_float4(a.x - b.x,
 __device__ float4 operator *(float4 a, float4 b) { return make_float4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w); }
 __device__ float4 operator *(float4 a, float s) { return make_float4(a.x * s, a.y * s, a.z * s, a.w * s); }
 
+__device__ float3 operator *(const float3x4 M, const float3 v) {
+    float3 r;
+    r.x = Dot(v, M.m[0]);
+    r.y = Dot(v, M.m[1]);
+    r.z = Dot(v, M.m[2]);
+    return r;
+}
+
+__device__ float4 operator *(const float3x4 M, const float4 v) {
+    float4 r;
+    r.x = Dot(v, M.m[0]);
+    r.y = Dot(v, M.m[1]);
+    r.z = Dot(v, M.m[2]);
+    r.w = 1.0f;
+    return r;
+}
 __device__ bool operator ==(Sphere s1, Sphere s2) { return s1.r == s2.r && s1.p == s2.p; }
 __device__ bool operator !=(Sphere s1, Sphere s2) { return s1.r != s2.r && s1.p != s2.p; }
 
@@ -66,7 +87,7 @@ __device__ bool operator ==(Material m1, Material m2) {
                         m1.diffuseStrength != m2.diffuseStrength &&
 			m1.specularStrength != m2.specularStrength; }
 // Kernel functions
-__global__ void trace();
+__global__ void trace(uint **d_pixelData);
 __device__ float4 illuminate(Ray ray, int depth);
 __device__ float intersects(Sphere *s, Ray r);
 __device__ float intersects(Triangle *t, Ray r);
@@ -81,27 +102,28 @@ void SetViewMatrix(float invViewMatrix[12])
 
 // Copy scene data to device
 void SetSceneData(float width, float height, float4 ambientLight, float4 backgroundColor,
-		unsigned int numLights, Light *lights,
-		unsigned int numTriangles, Triangle *triangles,
-		unsigned int numSpheres, Sphere *spheres)
+		uint numLights, Light *lights,
+		uint numTriangles, Triangle *triangles,
+		uint numSpheres, Sphere *spheres)
 {
 	cudaMemcpy(&d_width, &width, sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(&d_height, &height, sizeof(float), cudaMemcpyHostToDevice);
 	cudaMemcpy(&d_ambientLight, &ambientLight, sizeof(float4), cudaMemcpyHostToDevice);
 	cudaMemcpy(&d_backgroundColor, &backgroundColor, sizeof(float4), cudaMemcpyHostToDevice);
 
-	cudaMallocPitch((void **)&d_pixelData, &pitch, d_width * sizeof(float), d_height);
+	//cudaMallocPitch((void **)&d_pixelData, &pitch, d_width * sizeof(float4), d_height);
+	//cudaMalloc((void **)&d_pixelData, d_width * d_height * sizeof(float4));
 
 	size_t sizeLights = numLights * sizeof(Light);
 	cudaMalloc((void **)&d_lights, sizeLights);
 	cudaMemcpy(&d_lights, lights, sizeLights, cudaMemcpyHostToDevice);
 	
-	cudaMemcpy(&d_numTriangles, &numTriangles, sizeof(unsigned int), cudaMemcpyHostToDevice);
+	cudaMemcpy(&d_numTriangles, &numTriangles, sizeof(uint), cudaMemcpyHostToDevice);
 	size_t sizeTriangles = numTriangles * sizeof(Triangle);
 	cudaMalloc((void **)&d_triangles, sizeTriangles);
 	cudaMemcpy(&d_triangles, triangles, sizeTriangles, cudaMemcpyHostToDevice);
 	
-	cudaMemcpy(&d_numSpheres, &numSpheres, sizeof(unsigned int), cudaMemcpyHostToDevice);
+	cudaMemcpy(&d_numSpheres, &numSpheres, sizeof(uint), cudaMemcpyHostToDevice);
 	size_t sizeSpheres = numSpheres * sizeof(Sphere);
 	cudaMalloc((void **)&d_spheres, sizeSpheres);
 	cudaMemcpy(&d_spheres, spheres, sizeSpheres, cudaMemcpyHostToDevice);
@@ -114,20 +136,43 @@ void FreeSceneData()
 	cudaFree(d_spheres);
 }
 
-void GetPixelData(float4** pixelData, dim3 gridSize, dim3 blockSize) {
-	trace<<<gridSize, blockSize>>>();
-	cudaMemcpy(&pixelData, d_pixelData, pitch, cudaMemcpyDeviceToHost);
+void GetPixelData(uint **d_pixelData, dim3 gridSize, dim3 blockSize) {
+	
+	trace<<<gridSize, blockSize>>>(d_pixelData);
+	//cudaMemcpy(&pixelData, d_pixelData, d_width * d_height * sizeof(float4), cudaMemcpyDeviceToHost);
+	//cudaMemcpy(&pixelData, d_pixelData, sizeof(float4) * width * height, cudaMemcpyDeviceToHost);
+}
+
+__device__ uint rgbaFloatToInt(float4 rgba)
+{
+    rgba.x = __saturatef(rgba.x);   // clamp to [0.0, 1.0]
+    rgba.y = __saturatef(rgba.y);
+    rgba.z = __saturatef(rgba.z);
+    rgba.w = __saturatef(rgba.w);
+    return (uint(rgba.w*255)<<24) | (uint(rgba.z*255)<<16) | (uint(rgba.y*255)<<8) | uint(rgba.x*255);
 }
 
 __global__
-void trace() {
+void trace(uint **d_pixelData) {
 	int x, y;
-	x = blockIdx.x * gridDim.x + threadIdx.x;
-	y = blockIdx.y * gridDim.y + threadIdx.y;
-	Ray ray;
-	ray.Direction = make_float3(0, 0, 0);
-	ray.Position = make_float3(0, 0, 0);
-	d_pixelData[x][y] = illuminate(ray, 1);
+	x = blockIdx.x * blockDim.x + threadIdx.x;
+	y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if ((x >= d_width) || (y >= d_height)) return;
+
+    float u = (x / (float) d_width)*2.0f-1.0f;
+    float v = (y / (float) d_height)*2.0f-1.0f;
+
+    float4 p = d_invViewMatrix * make_float4(0.0f, 0.0f, 0.0f, 1.0f);
+
+    Ray ray;
+    ray.Position.x = p.x;
+    ray.Position.y = p.y;
+    ray.Position.z = p.z;
+    ray.Direction = Normalize(make_float3(u, v, -2.0f));
+    ray.Direction = d_invViewMatrix * ray.Direction;
+
+	d_pixelData[x][y] = rgbaFloatToInt(illuminate(ray, 1));
 }
 
 __device__
@@ -194,7 +239,7 @@ void *getClosestIntersection(Ray ray, float3 *intersectPoint, ObjectType *type)
 	float curDist;
 	void *intersected = NULL;
 
-	unsigned int i;
+	uint i;
 	for(i = 0; i < d_numTriangles; ++i)
 	{
 		Triangle *t = &d_triangles[i];
@@ -280,7 +325,7 @@ float4 spawnShadowRay(float3 intersectPoint, void *intersectedObject, Material *
 	float4 diffuseTotal;
 	float4 specularTotal;
 
-	unsigned int i;
+	uint i;
 	for(i = 0; i < d_numLights; ++i)
 	{
 		Light light = d_lights[i];
@@ -292,17 +337,17 @@ float4 spawnShadowRay(float3 intersectPoint, void *intersectedObject, Material *
 		float facing = Dot(intersectNormal, lightVector);
 		if (facing < 0)
 		{
-			Ray shadowRay;
+			/*Ray shadowRay;
 			shadowRay.Position = intersectPoint;
 			shadowRay.Direction = lightVector;
 
 			// Check if the shadow ray reaches the light before hitting any other object
 			float dist = Distance(intersectPoint, light.Position);
-			/*bool shadowed = false;
+			bool shadowed = false;
 
 			float4 shadowLight;
 
-			unsigned int k;
+			uint k;
 			for(k = 0; k < numTriangles; ++k)
 			{
 				Triangle t* = &d_triangles[k];
@@ -365,17 +410,17 @@ float4 illuminate(Ray ray, int depth) {
     if (rt)
     {
         float3 intersectNormal;
-	Material *m;
-	if(type == T_Sphere)	
-	{
-		Sphere *s = (Sphere *)rt;
-		intersectNormal = Normalize(intersectPoint - s->p);
-		m = &(s->m);
-	} else {
-		Triangle *t = (Triangle *)rt;
-		intersectNormal = t->n;	
-		m = &(t->m);
-	}
+		Material *m;
+		if(type == T_Sphere)
+		{
+			Sphere *s = (Sphere *)rt;
+			intersectNormal = Normalize(intersectPoint - s->p);
+			m = &(s->m);
+		} else {
+			Triangle *t = (Triangle *)rt;
+			intersectNormal = t->n;
+			m = &(t->m);
+		}
 
         //float3 viewVector = Normalize(ray.Position - intersectPoint);
         float3 viewVector = -ray.Direction;

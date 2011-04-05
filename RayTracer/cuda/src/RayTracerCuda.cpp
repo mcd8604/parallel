@@ -1,5 +1,7 @@
+#include <GL/glew.h>
 #include <GL/glut.h>
 #include <cuda_runtime_api.h>
+#include <cuda_gl_interop.h>
 #include <vector_types.h>
 #include <vector_functions.h>
 #include <stdlib.h>
@@ -29,13 +31,16 @@ Light *lights;
 float4 backgroundColor;
 float4 ambientLight;
 
-float4 **pixelData;
+GLuint pbo = 0;     // OpenGL pixel buffer object
+GLuint tex = 0;     // OpenGL texture object
+struct cudaGraphicsResource *cuda_pbo_resource; // CUDA Graphics Resource (to transfer PBO)
+unsigned int **d_pixelData;
 
 void SetSceneData(float width, float height, float4 backgroundColor, float4 ambientLight,
 		unsigned int numLights, Light *lights, unsigned int numTriangles, Triangle *triangles, unsigned int numSpheres, Sphere *spheres);
 void FreeSceneData();
 void SetViewMatrix(float invViewMatrix[12]);
-void GetPixelData(float4 **pixelData, dim3 gridSize, dim3 blockSize);
+void GetPixelData(unsigned int **pixelData, dim3 gridSize, dim3 blockSize);
 
 void GetSceneData()
 {
@@ -153,22 +158,74 @@ void UpdateViewMatrix()
 // Draws the graphics
 void Draw() {
 	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+    	//cudaMemset(d_PixelData, 0, width*height*sizeof(float4));
 
 	dim3 gridSize(64, 64);
 	dim3 blockSize(width / gridSize.x, height / gridSize.y);
-	GetPixelData(pixelData, gridSize, blockSize);
+	//GetPixelData(d_pixelData, gridSize, blockSize);
 
-	int x, y;
+	/*int x, y;
 	for(x = 0; x < width; ++x)
 		for(y = 0; y < height; ++y)
 		{
 			float4 p = pixelData[x][y];
 			if(p.x > 0 || p.y > 0 || p.z > 0 || p.w > 0)
 				printf("COLOR");
-		}
-	glDrawPixels(width, height, GL_RGBA, GL_FLOAT, pixelData);
+		}*/
+//glDrawPixels(width, height, GL_RGBA, GL_FLOAT, pixelData);
+
+    // copy from pbo to texture
+    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+    glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+
+    // draw textured quad
+    glEnable(GL_TEXTURE_2D);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0, 0); glVertex2f(0, 0);
+    glTexCoord2f(1, 0); glVertex2f(1, 0);
+    glTexCoord2f(1, 1); glVertex2f(1, 1);
+    glTexCoord2f(0, 1); glVertex2f(0, 1);
+    glEnd();
+
+    glDisable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
 	glutSwapBuffers();
+}
+
+void initPixelBuffer() {
+    if (pbo) {
+		// unregister this buffer object from CUDA C
+		cudaGraphicsUnregisterResource(cuda_pbo_resource);
+
+		// delete old buffer
+        glDeleteBuffersARB(1, &pbo);
+        glDeleteTextures(1, &tex);
+    }
+
+    // create pixel buffer object for display
+    glGenBuffersARB(1, &pbo);
+	glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, pbo);
+	glBufferDataARB(GL_PIXEL_UNPACK_BUFFER_ARB, width*height*sizeof(GLubyte)*4, 0, GL_STREAM_DRAW_ARB);
+	glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, 0);
+
+    // register this buffer object with CUDA
+	cudaGraphicsGLRegisterBuffer(&cuda_pbo_resource, pbo, cudaGraphicsMapFlagsWriteDiscard);
+
+    // create texture for display
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+	cudaGraphicsMapResources(1, &cuda_pbo_resource, 0);
+	size_t num_bytes;
+	cudaGraphicsResourceGetMappedPointer((void **)&d_pixelData, &num_bytes, cuda_pbo_resource);
+
 }
 
 int main(int argc, char** argv)
@@ -177,6 +234,8 @@ int main(int argc, char** argv)
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
 	glutInitWindowSize(RES_WIDTH, RES_HEIGHT);
 	glutCreateWindow("CUDA Ray Tracer");
+    glewInit();
+    cudaGLSetGLDevice(0);
 
 	glutDisplayFunc(Draw);
 	
@@ -185,7 +244,8 @@ int main(int argc, char** argv)
 			numLights, lights, numTriangles, triangles, numSpheres, spheres);
 	UpdateViewMatrix();
 
-	pixelData = (float4 **)malloc(sizeof(float4) * width * height);
+//	pixelData = (float4 **)malloc(sizeof(float4) * width * height);
+	initPixelBuffer();
 
 	glutMainLoop();
 
