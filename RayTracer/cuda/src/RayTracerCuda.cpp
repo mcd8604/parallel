@@ -139,7 +139,7 @@ void GetSceneData()
 {
 	// TODO: read initialization data from file, data source, or user input
 
-	camPos = make_float3(3, 4, 15);
+	camPos = make_float3(3, 5, 15);
 	camTar = make_float3(3, 0, -70);
 	camUp = make_float3(0, 1, 0);
 	fovy = 45.0;
@@ -187,12 +187,9 @@ void GetSceneData()
 	sphere1.r = 1;
 	// glass material
     Material glass;
-//    glass.ambientStrength = 0.075;
-//    glass.diffuseStrength = 0.075;
-//    glass.specularStrength = 0.2;
     glass.ambientStrength = 0.075;
     glass.diffuseStrength = 0.075;
-    glass.specularStrength = 0.0;
+    glass.specularStrength = 0.2;
     glass.exponent = 20;
     glass.ambientColor = make_float4(1, 1, 1, 1);
     glass.diffuseColor = make_float4(1, 1, 1, 1);
@@ -207,12 +204,9 @@ void GetSceneData()
 	sphere2.r = 1;
 	// mirror material
     Material mirror;
-//    mirror.ambientStrength = 0.15;
-//    mirror.diffuseStrength = 0.25;
-//    mirror.specularStrength = 1;
     mirror.ambientStrength = 0.15;
     mirror.diffuseStrength = 0.25;
-    mirror.specularStrength = 0;
+    mirror.specularStrength = 1;
     mirror.exponent = 20;
     mirror.ambientColor = make_float4(.7, .7, .7, .7);
     mirror.diffuseColor = make_float4(.7, .7, .7, .7);
@@ -718,7 +712,6 @@ main( int argc, char** argv)
     		gluLookAt(camPos.x, camPos.y, camPos.z,
     			camTar.x, camTar.y, camTar.z,
     			camUp.x, camUp.y, camUp.z);
-    		//gluPerspective(fovy, GLdouble(width) / height, near)
         glGetFloatv(GL_MODELVIEW_MATRIX, modelView);
         glPopMatrix();
 

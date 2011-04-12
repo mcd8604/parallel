@@ -292,7 +292,8 @@ float4 calculateAmbient(Material *m, float4 d_ambientLight)
 
 __device__
 float4 calculateDiffuse(Material *m, float3 worldCoords, Light l, float3 normal, float3 lightVector) {
-	float4 diffuseLight = l.Color;
+	float4 diffuseLight = make_float4(0,0,0,0);
+	diffuseLight += l.Color;
 	if (m)
 		diffuseLight = diffuseLight *
 			fabs(Dot(lightVector, normal)) *
@@ -339,8 +340,8 @@ float4 spawnShadowRay(float3 intersectPoint, void *intersectedObject, Material *
 						uint d_numTriangles, Triangle *d_triangles,
 						uint d_numSpheres, Sphere *d_spheres)
 {
-	float4 diffuseTotal;
-	float4 specularTotal;
+	float4 diffuseTotal = make_float4(0,0,0,0);
+	float4 specularTotal = make_float4(0,0,0,0);
 
 	uint i;
 	for(i = 0; i < d_numLights; ++i)
@@ -352,7 +353,7 @@ float4 spawnShadowRay(float3 intersectPoint, void *intersectedObject, Material *
 
 		// but only if the intersection is facing the light source
 		float facing = Dot(intersectNormal, lightVector);
-		if (facing < 0)
+		if (facing > 0)
 		{
 			/*Ray shadowRay;
 			shadowRay.Position = intersectPoint;
@@ -408,13 +409,12 @@ float4 spawnShadowRay(float3 intersectPoint, void *intersectedObject, Material *
 			}
 			else
 			{*/
-				//diffuseTotal = diffuseTotal + calculateDiffuse(m, intersectPoint, light, intersectNormal, lightVector);
-				specularTotal = specularTotal + calculateSpecular(m, intersectPoint, light, intersectNormal, lightVector, viewVector);
+				diffuseTotal += calculateDiffuse(m, intersectPoint, light, intersectNormal, lightVector);
+				specularTotal += calculateSpecular(m, intersectPoint, light, intersectNormal, lightVector, viewVector);
 			//}
 
 		}
 	}
-
 	return diffuseTotal /** m->diffuseStrength*/ + specularTotal /** m->specularStrength*/;
 }
 
@@ -449,8 +449,9 @@ float4 illuminate(Ray ray, int depth,
 
         //float3 viewVector = Normalize(ray.Position - intersectPoint);
         float3 viewVector = -ray.Direction;
-        float4 totalLight = calculateAmbient(m, d_ambientLight);
-        totalLight = totalLight + spawnShadowRay(intersectPoint, rt, m, intersectNormal, viewVector, depth,
+        float4 totalLight = make_float4(0,0,0,0);
+        totalLight += calculateAmbient(m, d_ambientLight);
+        totalLight += spawnShadowRay(intersectPoint, rt, m, intersectNormal, viewVector, depth,
     			d_ambientLight, d_backgroundColor,
     			d_numLights, d_lights,
     			d_numTriangles, d_triangles,
