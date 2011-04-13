@@ -23,11 +23,69 @@ void Scene::SetRecursionDepth(int rDepth) {
 	recursionDepth = rDepth;
 }
 
+void Scene::updateViewProj() {
+	if(width > 0 && height > 0) {
+		// use OpenGL to unproject
+		GLdouble model[16];
+		GLdouble proj[16];
+		GLint view[4];
+		view[0] = 0;
+		view[1] = 0;
+		view[2] = width;
+		view[3] = height;
+
+		glMatrixMode(GL_PROJECTION);
+		glPushMatrix();
+		glLoadIdentity();
+		gluPerspective(fovy, GLdouble(width)/height, nearPlaneDistance, farPlaneDistance);
+		glGetDoublev(GL_PROJECTION_MATRIX, proj);
+		glPopMatrix();
+
+		glMatrixMode(GL_MODELVIEW);
+		glPushMatrix();
+		glLoadIdentity();
+		gluLookAt(cameraPos.x, cameraPos.y, cameraPos.z,
+				cameraTarget.x, cameraTarget.y, cameraTarget.z,
+				cameraUp.x, cameraUp.y, cameraUp.z);
+		glGetDoublev(GL_MODELVIEW_MATRIX, model);
+		//glGetIntegerv(GL_VIEWPORT, view);
+		glPopMatrix();
+
+		int x, y;
+		for(y = 0; y < height; ++y)
+		{
+			for(x = 0; x < width; ++x)
+			{
+				Vector3 rayS;
+				Vector3 rayE;
+
+				gluUnProject(x, y, 0, model, proj, view, &rayS.x, &rayS.y, &rayS.z);
+				gluUnProject(x, y, 1, model, proj, view, &rayE.x, &rayE.y, &rayE.z);
+
+				Ray r;
+				r.Position = rayS;
+				r.Direction = (rayE - rayS).Normalize();
+				rayTable[x + y * width] = r;
+			}
+		}
+	}
+}
+
+Vector3 Scene::GetCameraPosition() {
+	return cameraPos;
+}
+
+void Scene::SetCameraPosition(Vector3 p) {
+	cameraPos = p;
+	updateViewProj();
+}
+
 void Scene::SetViewProjection(Vector3 pos, Vector3 tar, Vector3 up,
-		double fovy, double width, double height, double near, double far) {
+		double fovy, unsigned int width, unsigned int height, double near, double far) {
 	cameraPos = pos;
 	cameraTarget = tar;
 	cameraUp = up;
+	this->fovy = fovy;
 	this->width = width;
 	this->height = height;
 	nearPlaneDistance = near;
@@ -36,48 +94,7 @@ void Scene::SetViewProjection(Vector3 pos, Vector3 tar, Vector3 up,
 	//if(!rayTable)
 		//rayTable = new Ray[width * height];
 	rayTable.reserve(width * height);
-
-	// use OpenGL to unproject
-	GLdouble model[16];
-	GLdouble proj[16];
-	GLint view[4];
-	view[0] = 0;
-	view[1] = 0;
-	view[2] = width;
-	view[3] = height;
-
-	glMatrixMode(GL_PROJECTION);
-	glPushMatrix();
-	glLoadIdentity();
-	gluPerspective(fovy, width/height, near, far);
-	glGetDoublev(GL_PROJECTION_MATRIX, proj);
-	glPopMatrix();
-
-	glMatrixMode(GL_MODELVIEW);
-	glPushMatrix();
-	glLoadIdentity();
-	gluLookAt(pos.x, pos.y, pos.z, tar.x, tar.y, tar.z, up.x, up.y, up.z);
-	glGetDoublev(GL_MODELVIEW_MATRIX, model);
-	//glGetIntegerv(GL_VIEWPORT, view);
-	glPopMatrix();
-
-	int x, y;
-	for(y = 0; y < height; ++y)
-	{
-		for(x = 0; x < width; ++x)
-		{
-			Vector3 rayS;
-			Vector3 rayE;
-
-			gluUnProject(x, y, 0, model, proj, view, &rayS.x, &rayS.y, &rayS.z);
-			gluUnProject(x, y, 1, model, proj, view, &rayE.x, &rayE.y, &rayE.z);
-
-			Ray r;
-			r.Position = rayS;
-			r.Direction = (rayE - rayS).Normalize();
-			rayTable[x + y * width] = r;
-		}
-	}
+	updateViewProj();
 }
 
 void Scene::SetAmbient(Vector4 color) {

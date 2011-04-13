@@ -26,13 +26,16 @@ void Draw() {
 	glutSwapBuffers();
 }
 
-void GetSceneData(Scene *s)
+void updateView() {
+	s->SetViewProjection(Vector3(3, 4, 15), Vector3(3, 0, -70), Vector3(0, 1, 0),
+			45.0, RES_WIDTH, RES_HEIGHT, 0.1, 100);
+}
+
+void GetSceneData()
 {
 	// TODO: read initialization data from file, data source, or user input
 
-	s->SetViewProjection(Vector3(3, 4, 15), Vector3(3, 0, -70), Vector3(0, 1, 0),
-			45.0, RES_WIDTH, RES_HEIGHT, 0.1, 100);
-	s->SetRecursionDepth(2);
+	s->SetRecursionDepth(4);
 	s->SetBackground(Vector4(.5, .7, .9, 1));
 	s->SetAmbient(Vector4(.6, .6, .6, 1));
 	s->AddLight(Vector3(5, 8, 15), Vector4(1, 1, 1, 1));
@@ -57,7 +60,7 @@ void GetSceneData(Scene *s)
     Material *glass = new Material();
     glass->ambientStrength = 0.075;
     glass->diffuseStrength = 0.075;
-    glass->specularStrength = 0.2;
+    glass->specularStrength = 0.7;
     glass->exponent = 20;
     glass->setAmbientColor(Vector4(1, 1, 1, 1));
     glass->setDiffuseColor(Vector4(1, 1, 1, 1));
@@ -116,6 +119,33 @@ void idle() {
 	glutPostRedisplay();
 }
 
+void keyboard(unsigned char key, int x, int y)
+{
+	Vector3 camPos = s->GetCameraPosition();
+    switch(key) {
+        case 27:
+            exit(0);
+            break;
+        case 'w':
+        	camPos.z -= 0.1;
+            break;
+        case 's':
+        	camPos.z += 0.1;
+            break;
+        case 'a':
+        	camPos.x -= 0.1;
+            break;
+        case 'd':
+        	camPos.x += 0.1;
+            break;
+
+        default:
+            break;
+    }
+    s->SetCameraPosition(camPos);
+    glutPostRedisplay();
+}
+
 int main(int argc, char** argv)
 {
 	glutInit(&argc, argv);
@@ -124,13 +154,15 @@ int main(int argc, char** argv)
 	glutCreateWindow("Ray Tracer Test GL");
     glViewport(0, 0, RES_WIDTH,RES_HEIGHT);
 
+	glutKeyboardFunc(keyboard);
 	glutDisplayFunc(Draw);
 	glutIdleFunc(idle);
 	//glutReshapeFunc(reshape);
 	//glutKeyboardFunc(keyboard);
 
 	s = new Scene();
-	GetSceneData(s);
+    updateView();
+	GetSceneData();
 	pixelData = new float[(int)RES_WIDTH * (int)RES_HEIGHT * 3];
 	pthread_mutex_init(&mutex, NULL);
 

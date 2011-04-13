@@ -33,8 +33,8 @@ enum TROp
 
 class Scene {
 private:
-	double width;
-	double height;
+	unsigned int width;
+	unsigned int height;
 	//Matrix world;
 	//Matrix view;
 	//Matrix proj;
@@ -42,6 +42,7 @@ private:
 	Vector3 cameraPos;
 	Vector3 cameraTarget;
 	Vector3 cameraUp;
+	double fovy;
 	double nearPlaneDistance;
 	double farPlaneDistance;
 	std::vector<Ray> rayTable;
@@ -53,6 +54,7 @@ private:
 	std::vector<RTObject *> worldObjects;
 
 	void initViewProj();
+	void updateViewProj();
 	void createRayTable();
 	//Vector3 unProject(double winX, double winY, double winZ, Matrixd4x4 model, Matrixd4x4 proj, Vector4 view);
 	Vector4 Illuminate(Ray ray, int dept);
@@ -79,7 +81,9 @@ public:
 	virtual ~Scene();
 	void SetRecursionDepth(int rDepth);
 	void SetViewProjection(Vector3 pos, Vector3 tar, Vector3 up,
-			double fovy, double width, double height, double near, double far);
+			double fovy, unsigned int width, unsigned int height, double near, double far);
+	Vector3 GetCameraPosition();
+	void SetCameraPosition(Vector3 p);
 	void SetAmbient(Vector4 color);
 	void SetBackground(Vector4 color);
 	void AddLight(Vector3 pos, Vector4 clr);
