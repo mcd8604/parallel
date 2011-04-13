@@ -55,8 +55,35 @@ double RTTriangle::Intersects(Ray ray) {
 	double d = (ray.Direction).Dot(n);
 	if(d == 0)
 		return -1;
+    // get triangle edge vectors and plane normal
+	Vector3 u, v;
+	u = v2 - v1;
+    v = v3 - v1;
 
-	return (ray.Position - v1).Dot(n) / d;
+    // intersect point of ray and plane
+    float dist = (ray.Position - v1).Dot(n) / d;
+    Vector3 i = ray.Position + ray.Direction * dist;
+
+    // check if i inside t
+    float    uu, uv, vv, wu, wv, D;
+    uu = u.Dot(u);
+    uv = u.Dot(v);
+    vv = v.Dot(v);
+    Vector3 w = i - v1;
+    wu = w.Dot(u);
+    wv = w.Dot(v);
+    D = uv * uv - uu * vv;
+
+    // get and test parametric coords
+    float s, t;
+    s = (uv * wv - vv * wu) / D;
+    if (s < 0.0 || s > 1.0)        // I is outside T
+        return -1;
+    t = (uv * wu - uu * wv) / D;
+    if (t < 0.0 || (s + t) > 1.0)  // I is outside T
+        return -1;
+
+	return dist;
 }
 
 }
