@@ -41,20 +41,25 @@ void Scene::SetViewProjection(Vector3 pos, Vector3 tar, Vector3 up,
 	GLdouble model[16];
 	GLdouble proj[16];
 	GLint view[4];
-	//glMatrixMode(GL_PROJECTION);
-	//glPushMatrix();
-	//glLoadIdentity();
-	//gluPerspective(fovy, width/height, near, far);
-	//glGetDoublev(GL_PROJECTION_MATRIX, proj);
-	//glPopMatrix();
+	view[0] = 0;
+	view[1] = 0;
+	view[2] = width;
+	view[3] = height;
 
-	//glMatrixMode(GL_MODELVIEW);
-//	glPushMatrix();
-	//glLoadIdentity();
-	//gluLookAt(pos.x, pos.y, pos.z, tar.x, tar.y, tar.z, up.x, up.y, up.z);
-	//glGetDoublev(GL_MODELVIEW_MATRIX, model);
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	gluPerspective(fovy, width/height, near, far);
+	glGetDoublev(GL_PROJECTION_MATRIX, proj);
+	glPopMatrix();
+
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+	gluLookAt(pos.x, pos.y, pos.z, tar.x, tar.y, tar.z, up.x, up.y, up.z);
+	glGetDoublev(GL_MODELVIEW_MATRIX, model);
 	//glGetIntegerv(GL_VIEWPORT, view);
-//	glPopMatrix();
+	glPopMatrix();
 
 	int x, y;
 	for(y = 0; y < height; ++y)

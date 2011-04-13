@@ -11,6 +11,7 @@ using namespace std;
 using namespace RayTracer;
 
 float *pixelData;
+Scene *s;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -29,9 +30,9 @@ void GetSceneData(Scene *s)
 {
 	// TODO: read initialization data from file, data source, or user input
 
-	s->SetViewProjection(Vector3(3, 4, 15), Vector3(3, 0, 70), Vector3(0, 1, 0),
+	s->SetViewProjection(Vector3(3, 4, 15), Vector3(3, 0, -70), Vector3(0, 1, 0),
 			45.0, RES_WIDTH, RES_HEIGHT, 0.1, 100);
-	s->SetRecursionDepth(5);
+	s->SetRecursionDepth(2);
 	s->SetBackground(Vector4(.5, .7, .9, 1));
 	s->SetAmbient(Vector4(.6, .6, .6, 1));
 	s->AddLight(Vector3(5, 8, 15), Vector4(1, 1, 1, 1));
@@ -82,8 +83,6 @@ void GetSceneData(Scene *s)
 }
 
 void *trace(void *threadID) {
-	Scene *s = new Scene();
-	GetSceneData(s);
 	Vector4 *vectorData = new Vector4[(int)RES_WIDTH * (int)RES_HEIGHT];
 
 	while(true) {
@@ -123,12 +122,15 @@ int main(int argc, char** argv)
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
 	glutInitWindowSize(RES_WIDTH,RES_HEIGHT);
 	glutCreateWindow("Ray Tracer Test GL");
+    glViewport(0, 0, RES_WIDTH,RES_HEIGHT);
 
 	glutDisplayFunc(Draw);
 	glutIdleFunc(idle);
 	//glutReshapeFunc(reshape);
 	//glutKeyboardFunc(keyboard);
 
+	s = new Scene();
+	GetSceneData(s);
 	pixelData = new float[(int)RES_WIDTH * (int)RES_HEIGHT * 3];
 	pthread_mutex_init(&mutex, NULL);
 
