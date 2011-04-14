@@ -6,6 +6,7 @@
  */
 
 #include "RTTriangle.h"
+#include <algorithm>
 
 namespace RayTracer {
 
@@ -14,10 +15,23 @@ RTTriangle::RTTriangle(Vector3 v1, Vector3 v2, Vector3 v3, Vector3 n) {
 	this->v2 = v2;
 	this->v3 = v3;
 	this->n = n;
+	this->min.x = std::min(std::min(v1.x, v2.x), v3.x);
+	this->min.y = std::min(std::min(v1.y, v2.y), v3.y);
+	this->min.z = std::min(std::min(v1.z, v2.z), v3.z);
+	this->max.x = std::max(std::max(v1.x, v2.x), v3.x);
+	this->max.y = std::max(std::max(v1.y, v2.y), v3.y);
+	this->max.z = std::max(std::max(v1.z, v2.z), v3.z);
 }
 
 RTTriangle::~RTTriangle() {
 	// TODO Auto-generated destructor stub
+}
+
+float RTTriangle::getU(Vector3 worldCoords) {
+	return (worldCoords.x - min.x) / (max.x - min.x) * maxU;
+}
+float RTTriangle::getV(Vector3 worldCoords) {
+	return (worldCoords.z - min.z) / (max.z - min.z) * maxV;
 }
 
 bool RTTriangle::operator ==(RTObject *o) {

@@ -15,6 +15,9 @@ namespace RayTracer {
 class RTObject {
 protected:
 	Material *material1;
+	bool isTextured;
+	float maxU;
+	float maxV;
 public:
 
 	virtual bool operator ==(RTObject *o) =0;
@@ -24,6 +27,10 @@ public:
     /// Set the Material of the object
     /// </summary>
 	void SetMaterial(Material* mat);
+	void SetMaterial(Material* mat, float maxU, float maxV);
+
+	virtual float getU(Vector3 worldCoords);
+	virtual float getV(Vector3 worldCoords);
 
     /// <summary>
     /// Set the Material of the object

@@ -14,7 +14,7 @@ namespace RayTracer {
 
 class RTTriangle: public RTObject {
 protected:
-	Vector3 v1, v2, v3, n;
+	Vector3 v1, v2, v3, n, min, max;
 public:
 	RTTriangle(Vector3 v1, Vector3 v2, Vector3 v3, Vector3 n);
 	virtual ~RTTriangle();
@@ -22,6 +22,8 @@ public:
 	Vector3 GetV2();
 	Vector3 GetV3();
 	Vector3 GetN();
+	virtual float getU(Vector3 worldCoords);
+	virtual float getV(Vector3 worldCoords);
 	bool operator == (RTObject *o);
 	bool operator != (RTObject *o);
 	double Intersects(Ray ray);

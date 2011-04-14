@@ -36,6 +36,9 @@ public:
 	virtual void setDiffuseColor(Vector4 color);
 	virtual Vector4 getSpecularColor();
 	virtual void setSpecularColor(Vector4 color);
+	//Vector4 (*getTextureColor)(float, float);
+	//NOTE: hardcoded texture function, should be a function pointer
+	virtual Vector4 getTextureColor(float u, float v);
 };
 
 }

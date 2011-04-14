@@ -49,8 +49,8 @@ void GetSceneData()
     floorMat->setAmbientColor(Vector4(0.2, 1, 0.2, 1));
     floorMat->setDiffuseColor(Vector4(0.2, 1, 0.2, 1));
     floorMat->setSpecularColor(Vector4(0.2, 1, 0.2, 1));
-    floor1->SetMaterial(floorMat);
-    floor2->SetMaterial(floorMat);
+    floor1->SetMaterial(floorMat, 10, 15);
+    floor2->SetMaterial(floorMat, 10, 15);
     //floor.MaxU = 10;
     //floor.MaxV = 15;
     s->AddObject(floor1);

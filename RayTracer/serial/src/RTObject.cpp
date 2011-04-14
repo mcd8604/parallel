@@ -10,8 +10,8 @@
 
 namespace RayTracer {
 
-//float RTObject::getU(Vector3 worldCoords) { return 0; }
-//float RTObject::getV(Vector3 worldCoords) { return 0; }
+float RTObject::getU(Vector3 worldCoords) { return 0; }
+float RTObject::getV(Vector3 worldCoords) { return 0; }
 
 Material *RTObject::GetMaterial() {
 	return material1;
@@ -19,6 +19,14 @@ Material *RTObject::GetMaterial() {
 
 void RTObject::SetMaterial(Material *material) {
 	material1 = material;
+	isTextured = false;
+}
+
+void RTObject::SetMaterial(Material *material, float maxU, float maxV) {
+	material1 = material;
+	this->maxU = maxU;
+	this->maxV = maxV;
+	isTextured = true;
 }
 
 Vector4 RTObject::calculateAmbient(Vector4 worldAmbient, Vector3 worldCoords) {
@@ -26,10 +34,12 @@ Vector4 RTObject::calculateAmbient(Vector4 worldAmbient, Vector3 worldCoords) {
 
 	if (material1)
 	{
-		//if (material1 is IMaterialTexture)
-		//    ambientLight *= ((IMaterialTexture)material1).GetColor(getU(worldCoords), getV(worldCoords)) * material1.AmbientStrength;
-		//else
-			ambientLight = ambientLight * material1->getAmbientColor() * material1->ambientStrength;
+		Vector4 color;
+		if (isTextured)
+		    color = material1->getTextureColor(getU(worldCoords), getV(worldCoords));
+		else
+			color = material1->getAmbientColor();
+		ambientLight = ambientLight * color * material1->ambientStrength;
 	}
 
 	return ambientLight;
@@ -49,12 +59,12 @@ Vector4 RTObject::calculateDiffuse(Vector3 worldCoords, Vector3 normal, Light l,
 
 	if (material1)
 	{
-		//if (material1 is IMaterialTexture)
-		//    diffuseLight *= ((IMaterialTexture)material1).GetColor(getU(worldCoords), getV(worldCoords));
-		//else
-			diffuseLight = diffuseLight * material1->getDiffuseColor();
-
-		diffuseLight = diffuseLight * fabs(lightVector.Dot(normal)) * material1->diffuseStrength;
+		Vector4 color;
+		if (isTextured)
+		    color = material1->getTextureColor(getU(worldCoords), getV(worldCoords));
+		else
+			color = material1->getDiffuseColor();
+		diffuseLight = diffuseLight * color * fabs(lightVector.Dot(normal)) * material1->diffuseStrength;
 	}
 
 	return diffuseLight;
@@ -71,22 +81,23 @@ Vector4 RTObject::calculateDiffuse(Vector3 worldCoords, Vector3 normal, Light l,
 /// <returns>The specular color of the object at the specified point for a given light source.</returns>
 Vector4 RTObject::calculateSpecular(Vector3 worldCoords, Vector3 normal, Light l, Vector3 lightVector, Vector3 viewVector)
 {
+	Vector3 reflectedVector = lightVector.Reflect(normal);
+	double dot = reflectedVector.Dot(viewVector);
+
+	if (dot >= 0)
+	    return Vector4(0, 0, 0, 0);
+
 	Vector4 specularLight = l.LightColor;
 
 	if (material1)
 	{
-		//if (material1 is IMaterialTexture)
-		//    specularLight *= ((IMaterialTexture)material1).GetColor(getU(worldCoords), getV(worldCoords));
-		//else
-			specularLight = specularLight * material1->getSpecularColor();
-
-		Vector3 reflectedVector = lightVector.Reflect(normal);
-		double dot = reflectedVector.Dot(viewVector);
-
-		if (dot >= 0)
-		    return Vector4(0, 0, 0, 0);
-
-		specularLight = specularLight * material1->specularStrength * fabs(lightVector.Dot(normal) * pow(dot, material1->exponent));
+		Vector4 color;
+		if (isTextured)
+		    color = material1->getTextureColor(getU(worldCoords), getV(worldCoords));
+		else
+			color = material1->getSpecularColor();
+		specularLight = specularLight * color * material1->specularStrength *
+				fabs(lightVector.Dot(normal) * pow(dot, material1->exponent));
 	}
 
 	return specularLight;
