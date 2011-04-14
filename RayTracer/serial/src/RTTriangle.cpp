@@ -75,7 +75,7 @@ double RTTriangle::Intersects(Ray ray) {
     v = v3 - v1;
 
     // intersect point of ray and plane
-    float dist = (ray.Position - v1).Dot(n) / d;
+    float dist = -(ray.Position - v1).Dot(n) / d;
     Vector3 i = ray.Position + ray.Direction * dist;
 
     // check if i inside t

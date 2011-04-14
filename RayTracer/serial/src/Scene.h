@@ -57,7 +57,7 @@ private:
 	void updateViewProj();
 	void createRayTable();
 	//Vector3 unProject(double winX, double winY, double winZ, Matrixd4x4 model, Matrixd4x4 proj, Vector4 view);
-	Vector4 Illuminate(Ray ray, int dept);
+	Vector4 Illuminate(Ray ray, int depth);
 	Vector4 spawnTransmissionRay(
 			int depth,
 			Vector3 intersectPoint,
@@ -66,11 +66,13 @@ private:
 			Vector3 incidentVector);
 	Vector4 spawnShadowRay(
 			Vector3 intersectPoint,
-			RTObject *intersectedObject,
+			//RTObject *intersectedObject,
+			int objI,
 			Vector3 intersectNormal,
 			Vector3 viewVector,
 			int depth);
-	RTObject *getClosestIntersection(
+	//RTObject *getClosestIntersection(
+	int getClosestIntersection(
 			Ray ray,
 			Vector3 *intersectPt);
 	//void applyToneReproduction();

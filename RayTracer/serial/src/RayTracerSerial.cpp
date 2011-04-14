@@ -35,9 +35,9 @@ void GetSceneData()
 {
 	// TODO: read initialization data from file, data source, or user input
 
-	s->SetRecursionDepth(4);
-	s->SetBackground(Vector4(.5, .7, .9, 1));
-	s->SetAmbient(Vector4(.6, .6, .6, 1));
+	s->SetRecursionDepth(6);
+	s->SetBackground(Vector4(.4, .6, .93, 1));
+	s->SetAmbient(Vector4(.3, .3, .3, 1));
 	s->AddLight(Vector3(5, 8, 15), Vector4(1, 1, 1, 1));
 	s->AddLight(Vector3(-5, 8, 15), Vector4(1, 1, 1, 1));
 
@@ -46,9 +46,9 @@ void GetSceneData()
     Material *floorMat = new Material();
     floorMat->ambientStrength = 1;
     floorMat->diffuseStrength = 1;
-    floorMat->setAmbientColor(Vector4(0.2, 1, 0.2, 1));
-    floorMat->setDiffuseColor(Vector4(0.2, 1, 0.2, 1));
-    floorMat->setSpecularColor(Vector4(0.2, 1, 0.2, 1));
+    //floorMat->setAmbientColor(Vector4(0.2, 1, 0.2, 1));
+    //floorMat->setDiffuseColor(Vector4(0.2, 1, 0.2, 1));
+    //floorMat->setSpecularColor(Vector4(0.2, 1, 0.2, 1));
     floor1->SetMaterial(floorMat, 10, 15);
     floor2->SetMaterial(floorMat, 10, 15);
     //floor.MaxU = 10;

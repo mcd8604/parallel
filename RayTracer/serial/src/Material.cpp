@@ -24,16 +24,16 @@ Vector4 Material::getTextureColor(float u, float v) {
     if (fmod(u, 1) < 0.5f)
     {
         if (fmod(v, 1) < 0.5f)
-            return red * ambientStrength;
+            return red;// * ambientStrength;
         else
-            return yellow * ambientStrength;
+            return yellow;// * ambientStrength;
     }
     else
     {
         if (fmod(v, 1) < 0.5f)
-            return yellow * ambientStrength;
+            return yellow;// * ambientStrength;
         else
-        	return red * ambientStrength;
+        	return red;// * ambientStrength;
     }
 }
 

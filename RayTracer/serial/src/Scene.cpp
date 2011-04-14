@@ -9,6 +9,8 @@
 #include <iostream>
 #include <GL/glut.h>
 
+#define TRANSMIT_SHADOW 1
+
 namespace RayTracer {
 
 Scene::Scene() { }
@@ -134,16 +136,18 @@ void Scene::trace(Vector4 *colorData) {
 Vector4 Scene::Illuminate(Ray ray, int depth) {
 
     Vector3 intersectPoint;
-    RTObject *rt = getClosestIntersection(ray, &intersectPoint);
+    int i = getClosestIntersection(ray, &intersectPoint);
 
-    if (rt)
+    if(i != -1)
     {
+        RTObject *rt = worldObjects[i];
         Vector3 intersectNormal = rt->GetIntersectNormal(intersectPoint);
 
         //Vector3 viewVector = (ray.Position - intersectPoint).Normalize();
         Vector3 viewVector = -ray.Direction;
         Vector4 totalLight = rt->calculateAmbient(ambientLight, intersectPoint);
-        totalLight = totalLight + spawnShadowRay(intersectPoint, rt, intersectNormal, viewVector, depth);
+        //totalLight = totalLight + spawnShadowRay(intersectPoint, rt, intersectNormal, viewVector, depth);
+        totalLight = totalLight + spawnShadowRay(intersectPoint, i, intersectNormal, viewVector, depth);
 
         if (depth < recursionDepth)
         {
@@ -184,7 +188,8 @@ Vector4 Scene::Illuminate(Ray ray, int depth) {
 /// <param name="intersectNormal">Normal of the world object at the intersection point</param>
 /// <param name="totalLight">Total light to contribute to.</param>
 /// <param name="incidentVector">Ray direction incident to intersection.</param>
-Vector4 Scene::spawnTransmissionRay(int depth, Vector3 intersectPoint, RTObject *intersectedObject, Vector3 intersectNormal, Vector3 incidentVector)
+Vector4 Scene::spawnTransmissionRay(int depth, Vector3 intersectPoint,
+		RTObject *intersectedObject, Vector3 intersectNormal, Vector3 incidentVector)
 {
 	float n;
 
@@ -199,13 +204,13 @@ Vector4 Scene::spawnTransmissionRay(int depth, Vector3 intersectPoint, RTObject 
 	{
 		// assuming inside to outside
 		n = 1 / m->n;
-		intersectNormal = intersectNormal * -1;
+		intersectNormal = -intersectNormal;
 	}
 
 	double dot = incidentVector.Dot(intersectNormal);
 	double discriminant = 1 + ((n * n) * ((dot * dot) - 1));
 
-	if (discriminant < 0)
+	if (discriminant > 0)
 	{
 		// simulate total internal reflection
 		Vector3 dir = incidentVector.Reflect(intersectNormal);
@@ -220,7 +225,7 @@ Vector4 Scene::spawnTransmissionRay(int depth, Vector3 intersectPoint, RTObject 
 		Ray transRay;
 		transRay.Position = intersectPoint;
 		transRay.Direction = dir;
-		return Illuminate(transRay, depth + 1) * intersectedObject->GetMaterial()->kT;
+		return Illuminate(transRay, depth + 1) * m->kT;
 	}
 }
 
@@ -233,10 +238,12 @@ Vector4 Scene::spawnTransmissionRay(int depth, Vector3 intersectPoint, RTObject 
 /// <param name="viewVector">Camera view vector.</param>
 /// <param name="depth">current recursion depth.</param>
 /// <returns></returns>
-Vector4 Scene::spawnShadowRay(Vector3 intersectPoint, RTObject *intersectedObject, Vector3 intersectNormal, Vector3 viewVector, int depth)
+Vector4 Scene::spawnShadowRay(Vector3 intersectPoint, //RTObject *intersectedObject,
+		int objI, Vector3 intersectNormal, Vector3 viewVector, int depth)
 {
 	Vector4 diffuseTotal;
 	Vector4 specularTotal;
+	RTObject *intersectedObject = worldObjects[objI];
 
 	unsigned int i;
 	for(i = 0; i < lights.size(); ++i)
@@ -248,7 +255,7 @@ Vector4 Scene::spawnShadowRay(Vector3 intersectPoint, RTObject *intersectedObjec
 
 		// but only if the intersection is facing the light source
 		float facing = intersectNormal.Dot(lightVector);
-		if (facing < 0)
+		if (facing > 0)
 		{
 			Ray shadowRay;
 			shadowRay.Position = intersectPoint;
@@ -258,14 +265,17 @@ Vector4 Scene::spawnShadowRay(Vector3 intersectPoint, RTObject *intersectedObjec
 			float dist = intersectPoint.Distance(light.Position);
 			bool shadowed = false;
 
-			Vector4 shadowLight;
+			Vector4 shadowLight = Vector4(0, 0, 0, 0);
 
 			unsigned int k;
 			for(k = 0; k < worldObjects.size(); ++k)
 			{
-				RTObject *rt = worldObjects[k];
-				if (*rt != intersectedObject)
+				//if (*rt != intersectedObject)
+				if (k != objI)
 				{
+					RTObject *rt = worldObjects[k];
+				    //Vector3 intersectPoint2;
+				    //int objI2 = getClosestIntersection(ray, &intersectPoint2);
 					float curDist = rt->Intersects(shadowRay);
 					if (curDist > 0 && curDist < dist)
 					{
@@ -321,11 +331,12 @@ Vector4 Scene::spawnShadowRay(Vector3 intersectPoint, RTObject *intersectedObjec
 /// <param name="ray">The ray to test RTObjectintersections.</param>
 /// <param name="intersectPoint">The Vector3 to hold the intersection data.</param>
 /// <returns>The closest intersected RTObject, or null if no RTObject is intersected.</returns>
-RTObject *Scene::getClosestIntersection(Ray ray, Vector3 *intersectPoint)
+int Scene::getClosestIntersection(Ray ray, Vector3 *intersectPoint)
 {
 	float minDist = FLT_MAX;
 	float curDist;
-	RTObject *intersected = NULL;
+	//RTObject *intersected = NULL;
+	int intersected = -1;
 
 	unsigned int i;
 	for(i = 0; i < worldObjects.size(); ++i)
@@ -335,11 +346,12 @@ RTObject *Scene::getClosestIntersection(Ray ray, Vector3 *intersectPoint)
 		if (curDist > 0 && curDist < minDist)
 		{
 			minDist = curDist;
-			intersected = rt;
+			//intersected = rt;
+			intersected = i;
 		}
 	}
 
-	if(intersected)
+	if(intersected != -1)
 		*intersectPoint = ray.Position + ray.Direction * minDist;
 
 	return intersected;

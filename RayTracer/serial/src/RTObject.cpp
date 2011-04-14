@@ -84,7 +84,7 @@ Vector4 RTObject::calculateSpecular(Vector3 worldCoords, Vector3 normal, Light l
 	Vector3 reflectedVector = lightVector.Reflect(normal);
 	double dot = reflectedVector.Dot(viewVector);
 
-	if (dot >= 0)
+	if (dot > 0)
 	    return Vector4(0, 0, 0, 0);
 
 	Vector4 specularLight = l.LightColor;
