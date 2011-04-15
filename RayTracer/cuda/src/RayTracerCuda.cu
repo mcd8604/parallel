@@ -286,7 +286,7 @@ float intersects(Sphere *s, Ray ray) {
 /// <param name="intersectPoint">The float3 to hold the intersection data.</param>
 /// <returns>The closest intersected RTObject, or null if no RTObject is intersected.</returns>
 __device__
-void *getClosestIntersection(Ray ray, float3 *intersectPoint, ObjectType *type,
+int getClosestIntersection(Ray ray, float3 *intersectPoint, ObjectType *type,
 		float4 d_ambientLight, float4 d_backgroundColor,
 				uint d_numLights, Light *d_lights,
 				uint d_numTriangles, Triangle *d_triangles,
@@ -294,7 +294,7 @@ void *getClosestIntersection(Ray ray, float3 *intersectPoint, ObjectType *type,
 {
 	float minDist = CUDART_INF_F;
 	float curDist;
-	void *intersected = NULL;
+	int intersected = -1;
 
 	uint i;
 	for(i = 0; i < d_numTriangles; ++i)
@@ -304,7 +304,7 @@ void *getClosestIntersection(Ray ray, float3 *intersectPoint, ObjectType *type,
 		if (curDist > 0 && curDist < minDist)
 		{
 			minDist = curDist;
-			intersected = (void *)t;
+			intersected = i;
 			*type = T_Triangle;
 		}
 	}
@@ -316,55 +316,38 @@ void *getClosestIntersection(Ray ray, float3 *intersectPoint, ObjectType *type,
 		if (curDist > 0 && curDist < minDist)
 		{
 			minDist = curDist;
-			intersected = (void *)s;
+			intersected = i;
 			*type = T_Sphere;
 		}
 	}
 
-	if(intersected)
+	if(intersected >= 0)
 		*intersectPoint = ray.Position + ray.Direction * minDist;
 
 	return intersected;
 }
 
 __device__
-float4 calculateAmbient(Material *m, float4 d_ambientLight)
-{
-	float4 ambientLight = d_ambientLight;
-	if(m) ambientLight = ambientLight * m->ambientColor * m->ambientStrength;
-	return ambientLight;
-}
-
-__device__
-float4 calculateDiffuse(Material *m, float3 worldCoords, Light l, float3 normal, float3 lightVector) {
+float4 calculateDiffuse(float4 diffuseColor, float diffuseStrength, Light l, float3 normal, float3 lightVector) {
 	float4 diffuseLight = make_float4(0,0,0,0);
-	diffuseLight += l.Color;
-	if (m)
-		diffuseLight = diffuseLight *
-			fabs(Dot(lightVector, normal)) *
-			m->diffuseColor *
-			m->diffuseStrength;
+	diffuseLight += l.Color *
+		fabs(Dot(lightVector, normal)) *
+		diffuseColor *
+		diffuseStrength;
 	return diffuseLight;
 }
 
 __device__
-float4 calculateSpecular(Material *m, float3 worldCoords, Light l, float3 normal, float3 lightVector, float3 viewVector) {
+float4 calculateSpecular(float4 specularColor, float specularStrength, float exp, 
+		Light l, float3 normal, float3 lightVector, float3 viewVector) {
 	float3 reflectedVector = Reflect(lightVector, normal);
 	float dot = Dot(reflectedVector, viewVector);
-
 	if (dot >= 0)
 	    return make_float4(0, 0, 0, 0);
-
-	float4 specularLight = l.Color;
-
-	if (m)
-	{
-		specularLight = specularLight *
-			fabs(Dot(lightVector, normal) * pow(dot, m->exponent)) *
-			m->specularColor *
-			m->specularStrength;
-	}
-
+	float4 specularLight = l.Color *
+		fabs(Dot(lightVector, normal) * pow(dot, exp)) *
+		specularColor *
+		specularStrength;
 	return specularLight;
 }
 
@@ -378,12 +361,13 @@ float4 calculateSpecular(Material *m, float3 worldCoords, Light l, float3 normal
 /// <param name="depth">current recursion depth.</param>
 /// <returns></returns>
 __device__
-float4 spawnShadowRay(float3 intersectPoint, void *intersectedObject, Material *m, /*ObjectType t,*/
+float4 spawnShadowRay(float3 intersectPoint, int objI, 
+		Material *m, float4 ambientColor, float4 diffuseColor, float4 specularColor,
 		float3 intersectNormal, float3 viewVector, int depth,
-			float4 d_ambientLight, float4 d_backgroundColor,
-						uint d_numLights, Light *d_lights,
-						uint d_numTriangles, Triangle *d_triangles,
-						uint d_numSpheres, Sphere *d_spheres)
+		float4 d_ambientLight, float4 d_backgroundColor,
+		uint d_numLights, Light *d_lights,
+		uint d_numTriangles, Triangle *d_triangles,
+		uint d_numSpheres, Sphere *d_spheres)
 {
 	float4 diffuseTotal = make_float4(0,0,0,0);
 	float4 specularTotal = make_float4(0,0,0,0);
@@ -400,7 +384,7 @@ float4 spawnShadowRay(float3 intersectPoint, void *intersectedObject, Material *
 		float facing = Dot(intersectNormal, lightVector);
 		if (facing > 0)
 		{
-			/*Ray shadowRay;
+			Ray shadowRay;
 			shadowRay.Position = intersectPoint;
 			shadowRay.Direction = lightVector;
 
@@ -408,59 +392,31 @@ float4 spawnShadowRay(float3 intersectPoint, void *intersectedObject, Material *
 			float dist = Distance(intersectPoint, light.Position);
 			bool shadowed = false;
 
-			float4 shadowLight;
-
 			uint k;
-			for(k = 0; k < numTriangles; ++k)
+			for(k = 0; k < d_numSpheres; ++k)
 			{
-				Triangle t* = &d_triangles[k];
-				if (*t != intersectedObject)
+				Sphere *s = &d_spheres[k];
+				if (k != objI)
 				{
-					float curDist = rt->Intersects(shadowRay);
+					float curDist = intersects(s, shadowRay);
 					if (curDist > 0 && curDist < dist)
 					{
 						dist = curDist;
 						shadowed = true;
-
-#if !TRANSMIT_SHADOW
 						break;
-#else
-						Material *m = rt->GetMaterial();
-						if (m->kT > 0)
-						{
-							float3 incidentVector = (intersectPoint - shadowRay.Position).Normalize();
-							float3 shadowIntersect = shadowRay.Position + (shadowRay.Direction * curDist);
-							float3 shadowNormal = rt->GetIntersectNormal(shadowIntersect);
-
-							shadowLight = (shadowLight + spawnTransmissionRay(depth, shadowIntersect, rt, shadowNormal, incidentVector)) * m->kT;
-						}
-						else
-						{
-							shadowLight.x = 0;
-							shadowLight.y = 0;
-							shadowLight.z = 0;
-							shadowLight.w = 0;
-							break;
-						}
-#endif
 					}
 				}
-			}*/
-
-			/*if (shadowed)
-			{
-				diffuseTotal = diffuseTotal + intersectedObject->calculateDiffuse(intersectPoint, intersectNormal, light, lightVector) * shadowLight;
-				specularTotal = specularTotal + intersectedObject->calculateSpecular(intersectPoint, intersectNormal, light, lightVector, viewVector) * shadowLight;
 			}
-			else
-			{*/
-				diffuseTotal += calculateDiffuse(m, intersectPoint, light, intersectNormal, lightVector);
-				specularTotal += calculateSpecular(m, intersectPoint, light, intersectNormal, lightVector, viewVector);
-			//}
 
+			if(!shadowed) {
+				diffuseTotal += calculateDiffuse(diffuseColor, m->diffuseStrength, 
+						light, intersectNormal, lightVector);
+				specularTotal += calculateSpecular(specularColor, m->specularStrength, m->exponent,
+						light, intersectNormal, lightVector, viewVector);
+			}
 		}
 	}
-	return diffuseTotal /** m->diffuseStrength*/ + specularTotal /** m->specularStrength*/;
+	return diffuseTotal * m->diffuseStrength + specularTotal * m->specularStrength;
 }
 
 __device__
@@ -471,37 +427,76 @@ float4 traceReflection(Ray ray, int depth,
 					uint d_numSpheres, Sphere *d_spheres) {
     float3 intersectPoint;
     ObjectType type;
-    void *rt = getClosestIntersection(ray, &intersectPoint, &type,
+    int i = getClosestIntersection(ray, &intersectPoint, &type,
     		d_ambientLight, d_backgroundColor,
 			d_numLights, d_lights,
 			d_numTriangles, d_triangles,
 			d_numSpheres, d_spheres);
 
-    if (rt)
+    if (i >= 0)
     {
+    	float4 ambientColor, diffuseColor, specularColor;
         float3 intersectNormal;
 		Material *m;
 		if(type == T_Sphere)
 		{
-			Sphere *s = (Sphere *)rt;
+			Sphere *s = &d_spheres[i];
 			intersectNormal = Normalize(intersectPoint - s->p);
 			m = &(s->m);
+			ambientColor = m->ambientColor;
+			diffuseColor = m->diffuseColor;
+			specularColor = m->specularColor;
 		} else {
-			Triangle *t = (Triangle *)rt;
+			Triangle *t = &d_triangles[i];
 			intersectNormal = t->n;
 			m = &(t->m);
+			
+			//NOTE hardcoded checker texture
+			
+			float3 min, max;
+			min.x = fmin(fmin(t->v1.x, t->v2.x), t->v3.x);
+			min.y = fmin(fmin(t->v1.y, t->v2.y), t->v3.y);
+			min.z = fmin(fmin(t->v1.z, t->v2.z), t->v3.z);
+			max.x = fmax(fmax(t->v1.x, t->v2.x), t->v3.x);
+			max.y = fmax(fmax(t->v1.y, t->v2.y), t->v3.y);
+			max.z = fmax(fmax(t->v1.z, t->v2.z), t->v3.z);
+			
+			float u = (intersectPoint.x - min.x) / (max.x - min.x) * 10;
+			float v = (intersectPoint.z - min.z) / (max.z - min.z) * 15;
+			float4 red = make_float4(1, 0, 0, 1);
+			float4 yellow = make_float4(1, 1, 0, 1);
+			float4 c;
+		    if (fmod(u, 1) < 0.5f)
+		    {
+		        if (fmod(v, 1) < 0.5f)
+		        	c = red;// * ambientStrength;
+		        else
+		        	c = yellow;// * ambientStrength;
+		    }
+		    else
+		    {
+		        if (fmod(v, 1) < 0.5f)
+		        	c = yellow;// * ambientStrength;
+		        else
+		        	c = red;// * ambientStrength;
+		    }
+			ambientColor = c;
+			diffuseColor = c;
+			specularColor = c;
 		}
 
         //float3 viewVector = Normalize(ray.Position - intersectPoint);
         float3 viewVector = -ray.Direction;
         float4 totalLight = make_float4(0,0,0,0);
-        totalLight += calculateAmbient(m, d_ambientLight);
-        totalLight += spawnShadowRay(intersectPoint, rt, m, intersectNormal, viewVector, depth,
+        totalLight += d_ambientLight * ambientColor * m->ambientStrength;
+        totalLight += spawnShadowRay(intersectPoint, i, 
+        		m, ambientColor, diffuseColor, specularColor, 
+        		intersectNormal, viewVector, depth,
     			d_ambientLight, d_backgroundColor,
     			d_numLights, d_lights,
     			d_numTriangles, d_triangles,
     			d_numSpheres, d_spheres);
-
+        
         /*if (depth < 2)
         {
             float3 incidentVector = Normalize(intersectPoint - ray.Position);
@@ -543,32 +538,71 @@ float4 illuminate(Ray ray, int depth,
 					uint d_numSpheres, Sphere *d_spheres) {
     float3 intersectPoint;
     ObjectType type;
-    void *rt = getClosestIntersection(ray, &intersectPoint, &type,
+    int i = getClosestIntersection(ray, &intersectPoint, &type,
     		d_ambientLight, d_backgroundColor,
 			d_numLights, d_lights,
 			d_numTriangles, d_triangles,
 			d_numSpheres, d_spheres);
 
-    if (rt)
+    if (i >= 0)
     {
+    	float4 ambientColor, diffuseColor, specularColor;
         float3 intersectNormal;
 		Material *m;
 		if(type == T_Sphere)
 		{
-			Sphere *s = (Sphere *)rt;
+			Sphere *s = &d_spheres[i];
 			intersectNormal = Normalize(intersectPoint - s->p);
 			m = &(s->m);
+			ambientColor = m->ambientColor;
+			diffuseColor = m->diffuseColor;
+			specularColor = m->specularColor;
 		} else {
-			Triangle *t = (Triangle *)rt;
+			Triangle *t = &d_triangles[i];
 			intersectNormal = t->n;
 			m = &(t->m);
+			
+			//NOTE hardcoded checker texture
+			
+			float3 min, max;
+			min.x = fmin(fmin(t->v1.x, t->v2.x), t->v3.x);
+			min.y = fmin(fmin(t->v1.y, t->v2.y), t->v3.y);
+			min.z = fmin(fmin(t->v1.z, t->v2.z), t->v3.z);
+			max.x = fmax(fmax(t->v1.x, t->v2.x), t->v3.x);
+			max.y = fmax(fmax(t->v1.y, t->v2.y), t->v3.y);
+			max.z = fmax(fmax(t->v1.z, t->v2.z), t->v3.z);
+			
+			float u = (intersectPoint.x - min.x) / (max.x - min.x) * 10;
+			float v = (intersectPoint.z - min.z) / (max.z - min.z) * 15;
+			float4 red = make_float4(1, 0, 0, 1);
+			float4 yellow = make_float4(1, 1, 0, 1);
+			float4 c;
+		    if (fmod(u, 1) < 0.5f)
+		    {
+		        if (fmod(v, 1) < 0.5f)
+		        	c = red;// * ambientStrength;
+		        else
+		        	c = yellow;// * ambientStrength;
+		    }
+		    else
+		    {
+		        if (fmod(v, 1) < 0.5f)
+		        	c = yellow;// * ambientStrength;
+		        else
+		        	c = red;// * ambientStrength;
+		    }
+			ambientColor = c;
+			diffuseColor = c;
+			specularColor = c;
 		}
 
         //float3 viewVector = Normalize(ray.Position - intersectPoint);
         float3 viewVector = -ray.Direction;
         float4 totalLight = make_float4(0,0,0,0);
-        totalLight += calculateAmbient(m, d_ambientLight);
-        totalLight += spawnShadowRay(intersectPoint, rt, m, intersectNormal, viewVector, depth,
+        totalLight += d_ambientLight * ambientColor * m->ambientStrength;
+        totalLight += spawnShadowRay(intersectPoint, i, 
+        		m, ambientColor, diffuseColor, specularColor, 
+        		intersectNormal, viewVector, depth,
     			d_ambientLight, d_backgroundColor,
     			d_numLights, d_lights,
     			d_numTriangles, d_triangles,
@@ -690,7 +724,7 @@ d_render2(uint *d_output, Ray *d_rayTable,
 			numTriangles, triangles,
 			numSpheres, spheres));
 }
-
+/*
 __global__ void
 d_render(uint *d_output,
 		//float3 camPos, float3 camTar, float3 camUp,
@@ -769,8 +803,8 @@ d_render(uint *d_output,
 			numLights, lights,
 			numTriangles, triangles,
 			numSpheres, spheres));
-}
-
+}*/
+/*
 __global__ void test_intersect(uint *d_output, uint d_width, uint d_height, Sphere *s)
 {
 	uint x, y;
@@ -802,8 +836,8 @@ __global__ void test_intersect(uint *d_output, uint d_width, uint d_height, Sphe
     else
     	o = rgbaFloatToInt(make_float4(1,0,0,1));
     d_output[y*d_width + x] = o;
-}
-
+}*/
+/*
 extern "C"
 void render_kernel(dim3 gridSize, dim3 blockSize, uint *d_output,
 		//float3 camPos, float3 camTar, float3 camUp, float fovy, float near, float far,
@@ -859,7 +893,7 @@ void render_kernel(dim3 gridSize, dim3 blockSize, uint *d_output,
 	cutilSafeCall(cudaFree(d_triangles));
 	cutilSafeCall(cudaFree(d_spheres));
 	//test_intersect<<<gridSize, blockSize>>>( d_output, width, height, &d_spheres[0]);
-}
+}*/
 
 extern "C"
 void render_kernel2(dim3 gridSize, dim3 blockSize, uint *d_output, Ray *d_rayTable,

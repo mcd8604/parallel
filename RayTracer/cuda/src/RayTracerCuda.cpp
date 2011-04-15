@@ -47,14 +47,14 @@ const char *sReference[] =
 
 const char *sSDKsample = "CUDA 3D Ray Tracer";
 
-uint width = 800, height = 600;
-dim3 blockSize(16, 16);
+uint width = 640, height = 480;
+dim3 blockSize(12, 12);
 dim3 gridSize;
 
 float invViewMatrix[12];
 Ray *rayTable;
 
-bool unprojectGPU = true;
+bool unprojectGPU = false;
 float3 camPos;
 float3 camTar;
 float3 camUp;
@@ -94,12 +94,12 @@ CheckRender       *g_CheckRender = NULL;
 
 #define MAX(a,b) ((a > b) ? a : b)
 
-extern "C" void render_kernel(dim3 gridSize, dim3 blockSize, uint *d_output,
-		//float3 camPos, float3 camTar, float3 camUp, float fovy, float near, float far,
-		uint width, uint height, float4 ambientLight, float4 backgroundColor,
-		uint numLights, Light *lights,
-		uint numTriangles, Triangle *triangles,
-		uint numSpheres, Sphere *spheres);
+//extern "C" void render_kernel(dim3 gridSize, dim3 blockSize, uint *d_output,
+//		//float3 camPos, float3 camTar, float3 camUp, float fovy, float near, float far,
+//		uint width, uint height, float4 ambientLight, float4 backgroundColor,
+//		uint numLights, Light *lights,
+//		uint numTriangles, Triangle *triangles,
+//		uint numSpheres, Sphere *spheres);
 extern "C" void render_kernel2(dim3 gridSize, dim3 blockSize, uint *d_output,
 		Ray *rayTable,
 		uint width, uint height, float4 ambientLight, float4 backgroundColor,
@@ -151,11 +151,11 @@ void GetSceneData()
 	floor2.n = make_float3(0, 1, 0);
 
 	Material floorM;
-	floorM.ambientStrength = 1;
-	floorM.diffuseStrength = 1;
-    floorM.ambientColor = make_float4(0.2, 1, 0.2, 1);
-    floorM.diffuseColor = make_float4(0.2, 1, 0.2, 1);
-    floorM.specularColor = make_float4(0.2, 1, 0.2, 1);
+	floorM.ambientStrength = 0.25;
+	floorM.diffuseStrength = 0.75;
+//    floorM.ambientColor = make_float4(0.2, 1, 0.2, 1);
+//    floorM.diffuseColor = make_float4(0.2, 1, 0.2, 1);
+//    floorM.specularColor = make_float4(0.2, 1, 0.2, 1);
 	floor1.m = floorM;
 	floor2.m = floorM;
 
@@ -257,16 +257,16 @@ void render()
 
 
     // call CUDA kernel, writing results to PBO
-    if(unprojectGPU)
-		render_kernel(gridSize, blockSize, d_output,
-				//camPos, camTar, camUp, fovy, near, far,
-				width, height,
-				ambientLight, backgroundColor,
-				numLights, lights,
-				numTriangles, triangles,
-				numSpheres, spheres);
-    else
-    {
+//    if(unprojectGPU)
+//		render_kernel(gridSize, blockSize, d_output,
+//				//camPos, camTar, camUp, fovy, near, far,
+//				width, height,
+//				ambientLight, backgroundColor,
+//				numLights, lights,
+//				numTriangles, triangles,
+//				numSpheres, spheres);
+//    else
+//    {
         Ray *d_rayTable;
         cutilSafeCall(cudaMalloc((void **)&d_rayTable, width * height * sizeof(Ray)));
         cutilSafeCall(cudaMemcpy(d_rayTable, rayTable, width * height * sizeof(Ray), cudaMemcpyHostToDevice));
@@ -277,7 +277,7 @@ void render()
 				numTriangles, triangles,
 				numSpheres, spheres);
 	    cutilSafeCall(cudaFree(d_rayTable));
-    }
+//    }
 
     cutilCheckMsg("kernel failed");
 
