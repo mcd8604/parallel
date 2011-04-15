@@ -168,18 +168,18 @@ void GetSceneData()
 	sphere1.p = make_float3(3, 4, 11);
 	sphere1.r = 1;
 	// glass material
-    Material glass;
-    glass.ambientStrength = 0.075;
-    glass.diffuseStrength = 0.075;
-    glass.specularStrength = 0.2;
-    glass.exponent = 20;
-    glass.ambientColor = make_float4(1, 1, 1, 1);
-    glass.diffuseColor = make_float4(1, 1, 1, 1);
-    glass.specularColor = make_float4(1, 1, 1, 1);
-    glass.kR = .01;
-    glass.kT = .99;
-    glass.n = .99;
-    sphere1.m = glass;
+//    Material glass;
+//    glass.ambientStrength = 0.075;
+//    glass.diffuseStrength = 0.075;
+//    glass.specularStrength = 0.2;
+//    glass.exponent = 20;
+//    glass.ambientColor = make_float4(1, 1, 1, 1);
+//    glass.diffuseColor = make_float4(1, 1, 1, 1);
+//    glass.specularColor = make_float4(1, 1, 1, 1);
+//    glass.kR = .01;
+//    glass.kT = .99;
+//    glass.n = .99;
+    //sphere1.m = glass;
 
     Sphere sphere2;
 	sphere2.p = make_float3(1.5, 3, 9);
@@ -191,10 +191,13 @@ void GetSceneData()
     mirror.specularStrength = 1;
     mirror.exponent = 20;
     mirror.ambientColor = make_float4(.7, .7, .7, .7);
-    mirror.diffuseColor = make_float4(.7, .7, .7, .7);
+    mirror.diffuseColor = make_float4(0, 0, 1, 1);
     mirror.specularColor = make_float4(1, 1, 1, 1);
     mirror.kR = .75;
     sphere2.m = mirror;
+
+    mirror.diffuseColor = make_float4(1, 0, 0, 1);
+    sphere1.m = mirror;
 
 	numSpheres = 2;
 	spheres = (Sphere *)malloc(numSpheres * sizeof(Sphere));
