@@ -272,12 +272,22 @@ void render()
         Ray *d_rayTable;
         cutilSafeCall(cudaMalloc((void **)&d_rayTable, width * height * sizeof(Ray)));
         cutilSafeCall(cudaMemcpy(d_rayTable, rayTable, width * height * sizeof(Ray), cudaMemcpyHostToDevice));
+        
+        cutilCheckError(cutStartTimer(timer));  
+        
 		render_kernel2(gridSize, blockSize, d_output, d_rayTable,
 				width, height, depth,
 				ambientLight, backgroundColor,
 				numLights, lights,
 				numTriangles, triangles,
 				numSpheres, spheres);
+		
+        cutilCheckError(cutStopTimer(timer));  
+
+        // Get elapsed time and throughput, then log to sample and master logs
+        double kernelTime = cutGetTimerValue(timer);
+        shrLogEx(LOGBOTH | MASTER, 0, "Kernel Time = %.5f ms\n", kernelTime); 
+        
 	    cutilSafeCall(cudaFree(d_rayTable));
 //    }
 
@@ -290,8 +300,6 @@ void render()
 // display results using OpenGL (called by GLUT)
 void display()
 {
-    cutilCheckError(cutStartTimer(timer));  
-
     render();
 
     // display results
@@ -341,9 +349,7 @@ void display()
     }
     glutSwapBuffers();
     glutReportErrors();
-
-    cutilCheckError(cutStopTimer(timer));  
-
+    
     computeFPS();
 }
 
@@ -428,6 +434,7 @@ void motion(int x, int y)
     }
 
     ox = x; oy = y;
+
     updateView();
     glutPostRedisplay();
 }
@@ -570,6 +577,8 @@ void unproject() {
 ////////////////////////////////////////////////////////////////////////////////
 void updateView()
 {
+    cutilCheckError(cutStartTimer(timer));  
+
     GLfloat mvp[16];
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
@@ -612,14 +621,25 @@ void updateView()
     } else {
     	unproject();
     }
+    
+    cutilCheckError(cutStopTimer(timer));  
+
+    // Get elapsed time and throughput, then log to sample and master logs
+    double updateViewTime = cutGetTimerValue(timer);
+    shrLogEx(LOGBOTH | MASTER, 0, "Update View Time = %.5f ms\n", updateViewTime); 
 }
 
 int
 main( int argc, char** argv) 
 {
     //start logs
-    shrSetLogFileName ("raytracer.txt");
+    shrSetLogFileName ("raytracer.log");
     shrLog("%s Starting...\n\n", argv[0]); 
+    bool saveppm;
+    if (cutCheckCmdLineFlag(argc, (const char **)argv, "saveppm"))
+	{
+    	saveppm = true;
+	}
 
     if (cutCheckCmdLineFlag(argc, (const char **)argv, "qatest") ||
 		cutCheckCmdLineFlag(argc, (const char **)argv, "noprompt")) 
@@ -670,6 +690,9 @@ main( int argc, char** argv)
 	
     // calculate new grid size
     gridSize = dim3(iDivUp(width, blockSize.x), iDivUp(height, blockSize.y));
+    
+    shrLogEx(LOGBOTH | MASTER, 0, "Size = %u Texels, NumDevsUsed = %u, Workgroup = %u\n", 
+          (width * height), 1, blockSize.x * blockSize.y); 
 
     if (g_bQAReadback) {
         g_CheckRender = new CheckBackBuffer(width, height, 4, false);
@@ -680,21 +703,9 @@ main( int argc, char** argv)
         uint *d_output;
         cutilSafeCall(cudaMalloc((void**)&d_output, width*height*sizeof(uint)));
         cutilSafeCall(cudaMemset(d_output, 0, width*height*sizeof(uint)));
-
-        float modelView[16] = 
-        {
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, 0.0f,
-            0.0f, 0.0f, 4.0f, 1.0f
-        };
-
-        //invViewMatrix[0] = modelView[0]; invViewMatrix[1] = modelView[4]; invViewMatrix[2] = modelView[8]; invViewMatrix[3] = modelView[12];
-        //invViewMatrix[4] = modelView[1]; invViewMatrix[5] = modelView[5]; invViewMatrix[6] = modelView[9]; invViewMatrix[7] = modelView[13];
-        //invViewMatrix[8] = modelView[2]; invViewMatrix[9] = modelView[6]; invViewMatrix[10] = modelView[10]; invViewMatrix[11] = modelView[14];
-
-        // call CUDA kernel, writing results to PBO
-	    //copyInvViewMatrix(invViewMatrix, sizeof(float4)*3);
+        
+		GetSceneData();
+		updateView();
         
         // Start timer 0 and process n loops on the GPU 
         int nIter = 10;
@@ -704,21 +715,31 @@ main( int argc, char** argv)
                 cudaThreadSynchronize();
                 cutStartTimer(timer); 
             }
-            
-            //render_kernel(gridSize, blockSize, d_output);
+
+            Ray *d_rayTable;
+            cutilSafeCall(cudaMalloc((void **)&d_rayTable, width * height * sizeof(Ray)));
+            cutilSafeCall(cudaMemcpy(d_rayTable, rayTable, width * height * sizeof(Ray), cudaMemcpyHostToDevice));
+    		render_kernel2(gridSize, blockSize, d_output, d_rayTable,
+    				width, height, depth,
+    				ambientLight, backgroundColor,
+    				numLights, lights,
+    				numTriangles, triangles,
+    				numSpheres, spheres);
+    	    cutilSafeCall(cudaFree(d_rayTable));
         }
         cudaThreadSynchronize();
         cutStopTimer(timer);
         // Get elapsed time and throughput, then log to sample and master logs
-        //double dAvgTime = cutGetTimerValue(timer)/(nIter * 1000.0);
-        //shrLogEx(LOGBOTH | MASTER, 0, "ray tracer, Throughput = %.4f MTexels/s, Time = %.5f s, Size = %u Texels, NumDevsUsed = %u, Workgroup = %u\n", 
-        //      (1.0e-6 * width * height)/dAvgTime, dAvgTime, (width * height), 1, blockSize.x * blockSize.y); 
+        double dAvgTime = cutGetTimerValue(timer)/(nIter * 1000.0);
+        shrLogEx(LOGBOTH | MASTER, 0, "ray tracer, Throughput = %.4f MTexels/s, Time = %.5f s, Size = %u Texels, NumDevsUsed = %u, Workgroup = %u\n", 
+              (1.0e-6 * width * height)/dAvgTime, dAvgTime, (width * height), 1, blockSize.x * blockSize.y); 
         
-
         cutilCheckMsg("Error: render_kernel() execution FAILED");
         cutilSafeCall( cudaThreadSynchronize() );
 
         cutilSafeCall( cudaMemcpy(g_CheckRender->imageData(), d_output, width*height*4, cudaMemcpyDeviceToHost) );
+        if(saveppm)
+        	g_CheckRender->savePPM(sReference[g_Index], true, NULL);
         g_CheckRender->savePPM(sOriginal[g_Index], true, NULL);
 
         if (!g_CheckRender->PPMvsPPM(sOriginal[g_Index], sReference[g_Index], MAX_EPSILON_ERROR, THRESHOLD)) {
