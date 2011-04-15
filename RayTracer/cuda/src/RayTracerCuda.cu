@@ -59,6 +59,7 @@ __device__ float Dot(float4 a, float4 b) { return a.x * b.x + a.y * b.y + a.z * 
 __device__ float Distance(float3 a, float3 b) { int dX, dY, dZ; dX = b.x - a.x; dY = b.y - a.y; dZ = b.z - a.z; return sqrtf(dX * dX + dY * dY + dZ * dZ); }
 __device__ float3 Reflect(float3 v, float3 n) { return v - n * Dot(v, n) * 2; }
 __device__ float3 Normalize(float3 v) { float xx, yy, zz, d; xx = v.x * v.x; yy = v.y * v.y; zz = v.z * v.z; d = sqrt(xx + yy + zz); return make_float3( v.x / d, v.y / d, v.z / d); }
+__device__ float4 Normalize(float4 v) { float xx, yy, zz, ww, d; xx = v.x * v.x; yy = v.y * v.y; zz = v.z * v.z; ww = v.w * v.w; d = sqrt(xx + yy + zz + ww); return make_float4( v.x / d, v.y / d, v.z / d, v.w / d); }
 
 __device__ bool operator ==(float4 a, float4 b) { return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w; }
 __device__ bool operator !=(float4 a, float4 b) { return a.x != b.x && a.y != b.y && a.z != b.z && a.w != b.w; }
@@ -83,6 +84,283 @@ __device__ float4 operator *(const float3x4 M, const float4 v) {
     r.w = 1.0f;
     return r;
 }
+
+__device__ float3 operator *(const float4x4 M, const float3 v) {
+    float3 r;
+    r.x = Dot(v, M.m[0]);
+    r.y = Dot(v, M.m[1]);
+    r.z = Dot(v, M.m[2]);
+    return r;
+}
+
+__device__ float4 operator *(const float4x4 M, const float4 v) {
+    float4 r;
+    r.x = Dot(v, M.m[0]);
+    r.y = Dot(v, M.m[1]);
+    r.z = Dot(v, M.m[2]);
+    r.w = Dot(v, M.m[3]);
+    return r;
+}
+/*
+int glhUnProjectf(float winx, float winy, float winz, float *modelview, float *projection, int *viewport, float *objectCoordinate)
+ {
+     //Transformation matrices
+     float m[16], A[16];
+     float in[4], out[4];
+     //Calculation for inverting a matrix, compute projection x modelview
+     //and store in A[16]
+     MultiplyMatrices4by4OpenGL_FLOAT(A, projection, modelview);
+     //Now compute the inverse of matrix A
+     if(glhInvertMatrixf2(A, m)==0)
+        return 0;
+     //Transformation of normalized coordinates between -1 and 1
+     in[0]=(winx-(float)viewport[0])/(float)viewport[2]*2.0-1.0;
+     in[1]=(winy-(float)viewport[1])/(float)viewport[3]*2.0-1.0;
+     in[2]=2.0*winz-1.0;
+     in[3]=1.0;
+     //Objects coordinates
+     MultiplyMatrixByVector4by4OpenGL_FLOAT(out, m, in);
+     if(out[3]==0.0)
+        return 0;
+     out[3]=1.0/out[3];
+     objectCoordinate[0]=out[0]*out[3];
+     objectCoordinate[1]=out[1]*out[3];
+     objectCoordinate[2]=out[2]*out[3];
+     return 1;
+ }
+ 
+ void MultiplyMatrices4by4OpenGL_FLOAT(float *result, float *matrix1, float *matrix2)
+ {
+   result[0]=matrix1[0]*matrix2[0]+
+     matrix1[4]*matrix2[1]+
+     matrix1[8]*matrix2[2]+
+     matrix1[12]*matrix2[3];
+   result[4]=matrix1[0]*matrix2[4]+
+     matrix1[4]*matrix2[5]+
+     matrix1[8]*matrix2[6]+
+     matrix1[12]*matrix2[7];
+   result[8]=matrix1[0]*matrix2[8]+
+     matrix1[4]*matrix2[9]+
+     matrix1[8]*matrix2[10]+
+     matrix1[12]*matrix2[11];
+   result[12]=matrix1[0]*matrix2[12]+
+     matrix1[4]*matrix2[13]+
+     matrix1[8]*matrix2[14]+
+     matrix1[12]*matrix2[15];
+   result[1]=matrix1[1]*matrix2[0]+
+     matrix1[5]*matrix2[1]+
+     matrix1[9]*matrix2[2]+
+     matrix1[13]*matrix2[3];
+   result[5]=matrix1[1]*matrix2[4]+
+     matrix1[5]*matrix2[5]+
+     matrix1[9]*matrix2[6]+
+     matrix1[13]*matrix2[7];
+   result[9]=matrix1[1]*matrix2[8]+
+     matrix1[5]*matrix2[9]+
+     matrix1[9]*matrix2[10]+
+     matrix1[13]*matrix2[11];
+   result[13]=matrix1[1]*matrix2[12]+
+     matrix1[5]*matrix2[13]+
+     matrix1[9]*matrix2[14]+
+     matrix1[13]*matrix2[15];
+   result[2]=matrix1[2]*matrix2[0]+
+     matrix1[6]*matrix2[1]+
+     matrix1[10]*matrix2[2]+
+     matrix1[14]*matrix2[3];
+   result[6]=matrix1[2]*matrix2[4]+
+     matrix1[6]*matrix2[5]+
+     matrix1[10]*matrix2[6]+
+     matrix1[14]*matrix2[7];
+   result[10]=matrix1[2]*matrix2[8]+
+     matrix1[6]*matrix2[9]+
+     matrix1[10]*matrix2[10]+
+     matrix1[14]*matrix2[11];
+   result[14]=matrix1[2]*matrix2[12]+
+     matrix1[6]*matrix2[13]+
+     matrix1[10]*matrix2[14]+
+     matrix1[14]*matrix2[15];
+   result[3]=matrix1[3]*matrix2[0]+
+     matrix1[7]*matrix2[1]+
+     matrix1[11]*matrix2[2]+
+     matrix1[15]*matrix2[3];
+   result[7]=matrix1[3]*matrix2[4]+
+     matrix1[7]*matrix2[5]+
+     matrix1[11]*matrix2[6]+
+     matrix1[15]*matrix2[7];
+   result[11]=matrix1[3]*matrix2[8]+
+     matrix1[7]*matrix2[9]+
+     matrix1[11]*matrix2[10]+
+     matrix1[15]*matrix2[11];
+   result[15]=matrix1[3]*matrix2[12]+
+     matrix1[7]*matrix2[13]+
+     matrix1[11]*matrix2[14]+
+     matrix1[15]*matrix2[15];
+ }
+ 
+ void MultiplyMatrixByVector4by4OpenGL_FLOAT(float *resultvector, const float *matrix, const float *pvector)
+ {
+   resultvector[0]=matrix[0]*pvector[0]+matrix[4]*pvector[1]+matrix[8]*pvector[2]+matrix[12]*pvector[3];
+   resultvector[1]=matrix[1]*pvector[0]+matrix[5]*pvector[1]+matrix[9]*pvector[2]+matrix[13]*pvector[3];
+   resultvector[2]=matrix[2]*pvector[0]+matrix[6]*pvector[1]+matrix[10]*pvector[2]+matrix[14]*pvector[3];
+   resultvector[3]=matrix[3]*pvector[0]+matrix[7]*pvector[1]+matrix[11]*pvector[2]+matrix[15]*pvector[3];
+ }
+ 
+#define SWAP_ROWS_DOUBLE(a, b) { double *_tmp = a; (a)=(b); (b)=_tmp; }
+#define SWAP_ROWS_FLOAT(a, b) { float *_tmp = a; (a)=(b); (b)=_tmp; }
+#define MAT(m,r,c) (m)[(c)*4+(r)]
+ 
+ //This code comes directly from GLU except that it is for float
+ int glhInvertMatrixf2(float *m, float *out)
+ {
+  float wtmp[4][8];
+  float m0, m1, m2, m3, s;
+  float *r0, *r1, *r2, *r3;
+  r0 = wtmp[0], r1 = wtmp[1], r2 = wtmp[2], r3 = wtmp[3];
+  r0[0] = MAT(m, 0, 0), r0[1] = MAT(m, 0, 1),
+     r0[2] = MAT(m, 0, 2), r0[3] = MAT(m, 0, 3),
+     r0[4] = 1.0, r0[5] = r0[6] = r0[7] = 0.0,
+     r1[0] = MAT(m, 1, 0), r1[1] = MAT(m, 1, 1),
+     r1[2] = MAT(m, 1, 2), r1[3] = MAT(m, 1, 3),
+     r1[5] = 1.0, r1[4] = r1[6] = r1[7] = 0.0,
+     r2[0] = MAT(m, 2, 0), r2[1] = MAT(m, 2, 1),
+     r2[2] = MAT(m, 2, 2), r2[3] = MAT(m, 2, 3),
+     r2[6] = 1.0, r2[4] = r2[5] = r2[7] = 0.0,
+     r3[0] = MAT(m, 3, 0), r3[1] = MAT(m, 3, 1),
+     r3[2] = MAT(m, 3, 2), r3[3] = MAT(m, 3, 3),
+     r3[7] = 1.0, r3[4] = r3[5] = r3[6] = 0.0;
+  // choose pivot - or die
+  if (fabsf(r3[0]) > fabsf(r2[0]))
+     SWAP_ROWS_FLOAT(r3, r2);
+  if (fabsf(r2[0]) > fabsf(r1[0]))
+     SWAP_ROWS_FLOAT(r2, r1);
+  if (fabsf(r1[0]) > fabsf(r0[0]))
+     SWAP_ROWS_FLOAT(r1, r0);
+  if (0.0 == r0[0])
+     return 0;
+  // eliminate first variable     
+  m1 = r1[0] / r0[0];
+  m2 = r2[0] / r0[0];
+  m3 = r3[0] / r0[0];
+  s = r0[1];
+  r1[1] -= m1 * s;
+  r2[1] -= m2 * s;
+  r3[1] -= m3 * s;
+  s = r0[2];
+  r1[2] -= m1 * s;
+  r2[2] -= m2 * s;
+  r3[2] -= m3 * s;
+  s = r0[3];
+  r1[3] -= m1 * s;
+  r2[3] -= m2 * s;
+  r3[3] -= m3 * s;
+  s = r0[4];
+  if (s != 0.0) {
+     r1[4] -= m1 * s;
+     r2[4] -= m2 * s;
+     r3[4] -= m3 * s;
+  }
+  s = r0[5];
+  if (s != 0.0) {
+     r1[5] -= m1 * s;
+     r2[5] -= m2 * s;
+     r3[5] -= m3 * s;
+  }
+  s = r0[6];
+  if (s != 0.0) {
+     r1[6] -= m1 * s;
+     r2[6] -= m2 * s;
+     r3[6] -= m3 * s;
+  }
+  s = r0[7];
+  if (s != 0.0) {
+     r1[7] -= m1 * s;
+     r2[7] -= m2 * s;
+     r3[7] -= m3 * s;
+  }
+  // choose pivot - or die 
+  if (fabsf(r3[1]) > fabsf(r2[1]))
+     SWAP_ROWS_FLOAT(r3, r2);
+  if (fabsf(r2[1]) > fabsf(r1[1]))
+     SWAP_ROWS_FLOAT(r2, r1);
+  if (0.0 == r1[1])
+     return 0;
+  // eliminate second variable 
+  m2 = r2[1] / r1[1];
+  m3 = r3[1] / r1[1];
+  r2[2] -= m2 * r1[2];
+  r3[2] -= m3 * r1[2];
+  r2[3] -= m2 * r1[3];
+  r3[3] -= m3 * r1[3];
+  s = r1[4];
+  if (0.0 != s) {
+     r2[4] -= m2 * s;
+     r3[4] -= m3 * s;
+  }
+  s = r1[5];
+  if (0.0 != s) {
+     r2[5] -= m2 * s;
+     r3[5] -= m3 * s;
+  }
+  s = r1[6];
+  if (0.0 != s) {
+     r2[6] -= m2 * s;
+     r3[6] -= m3 * s;
+  }
+  s = r1[7];
+  if (0.0 != s) {
+     r2[7] -= m2 * s;
+     r3[7] -= m3 * s;
+  }
+  // choose pivot - or die 
+  if (fabsf(r3[2]) > fabsf(r2[2]))
+     SWAP_ROWS_FLOAT(r3, r2);
+  if (0.0 == r2[2])
+     return 0;
+  // eliminate third variable
+  m3 = r3[2] / r2[2];
+  r3[3] -= m3 * r2[3], r3[4] -= m3 * r2[4],
+     r3[5] -= m3 * r2[5], r3[6] -= m3 * r2[6], r3[7] -= m3 * r2[7];
+  // last check 
+  if (0.0 == r3[3])
+     return 0;
+  s = 1.0 / r3[3];		// now back substitute row 3
+  r3[4] *= s;
+  r3[5] *= s;
+  r3[6] *= s;
+  r3[7] *= s;
+  m2 = r2[3];			// now back substitute row 2 
+  s = 1.0 / r2[2];
+  r2[4] = s * (r2[4] - r3[4] * m2), r2[5] = s * (r2[5] - r3[5] * m2),
+     r2[6] = s * (r2[6] - r3[6] * m2), r2[7] = s * (r2[7] - r3[7] * m2);
+  m1 = r1[3];
+  r1[4] -= r3[4] * m1, r1[5] -= r3[5] * m1,
+     r1[6] -= r3[6] * m1, r1[7] -= r3[7] * m1;
+  m0 = r0[3];
+  r0[4] -= r3[4] * m0, r0[5] -= r3[5] * m0,
+     r0[6] -= r3[6] * m0, r0[7] -= r3[7] * m0;
+  m1 = r1[2];			// now back substitute row 1 
+  s = 1.0 / r1[1];
+  r1[4] = s * (r1[4] - r2[4] * m1), r1[5] = s * (r1[5] - r2[5] * m1),
+     r1[6] = s * (r1[6] - r2[6] * m1), r1[7] = s * (r1[7] - r2[7] * m1);
+  m0 = r0[2];
+  r0[4] -= r2[4] * m0, r0[5] -= r2[5] * m0,
+     r0[6] -= r2[6] * m0, r0[7] -= r2[7] * m0;
+  m0 = r0[1];			// now back substitute row 0 
+  s = 1.0 / r0[0];
+  r0[4] = s * (r0[4] - r1[4] * m0), r0[5] = s * (r0[5] - r1[5] * m0),
+     r0[6] = s * (r0[6] - r1[6] * m0), r0[7] = s * (r0[7] - r1[7] * m0);
+  MAT(out, 0, 0) = r0[4];
+  MAT(out, 0, 1) = r0[5], MAT(out, 0, 2) = r0[6];
+  MAT(out, 0, 3) = r0[7], MAT(out, 1, 0) = r1[4];
+  MAT(out, 1, 1) = r1[5], MAT(out, 1, 2) = r1[6];
+  MAT(out, 1, 3) = r1[7], MAT(out, 2, 0) = r2[4];
+  MAT(out, 2, 1) = r2[5], MAT(out, 2, 2) = r2[6];
+  MAT(out, 2, 3) = r2[7], MAT(out, 3, 0) = r3[4];
+  MAT(out, 3, 1) = r3[5], MAT(out, 3, 2) = r3[6];
+  MAT(out, 3, 3) = r3[7];
+  return 1;
+ }
+*/
 
 __device__ bool operator ==(Sphere s1, Sphere s2) { return s1.r == s2.r && s1.p == s2.p; }
 __device__ bool operator !=(Sphere s1, Sphere s2) { return s1.r != s2.r && s1.p != s2.p; }
@@ -123,7 +401,7 @@ __device__ void *getClosestIntersection(Ray r, float3 *intersectPoint, ObjectTyp
 		uint d_numSpheres, Sphere *d_spheres);
 __device__ float4 calculateAmbient(Material *m, float4 d_ambientLight);*/
 
-__constant__ float3x4 c_invViewMatrix;  // inverse view matrix
+__constant__ float4x4 c_invViewMatrix;  // inverse view matrix
 
 extern "C"
 void copyInvViewMatrix(float *invViewMatrix, size_t sizeofMatrix)
@@ -172,9 +450,11 @@ __device__
 float intersects(Triangle *t, Ray r) {
 	//http://www.siggraph.org/education/materials/HyperGraph/raytrace/raypolygon_intersection.htm
 	float3 n = t->n;
-	float d = Dot(r.Direction, n);
+	float d = -Dot(r.Direction, n);
 	if(d == 0)
 		return -1;
+
+	float dist = Dot((r.Position - t->v1), n) / d;
 
 	/*float3 ri = r.Position + r.Direction * d;
 
@@ -190,7 +470,34 @@ float intersects(Triangle *t, Ray r) {
 
 	a = make_float2(t->v1[0], t->v1[1]);*/
 
-	return Dot((r.Position - t->v1), n) / d;
+    // get triangle edge vectors and plane normal
+    float3 u, v;
+	u = t->v2 - t->v1;
+    v = t->v3 - t->v1;
+
+    // intersect point of ray and plane
+    float3 i = r.Position + r.Direction * dist;
+
+    // check if i inside t
+    float    uu, uv, vv, wu, wv, D;
+    uu = dot(u,u);
+    uv = dot(u,v);
+    vv = dot(v,v);
+    float3 w = i - t->v1;
+    wu = dot(w,u);
+    wv = dot(w,v);
+    D = uv * uv - uu * vv;
+
+    // get and test parametric coords
+    float s, tc;
+    s = (uv * wv - vv * wu) / D;
+    if (s < 0.0 || s > 1.0)        // I is outside T
+        return -1;
+    tc = (uv * wu - uu * wv) / D;
+    if (tc < 0.0 || (s + tc) > 1.0)  // I is outside T
+        return -1;
+
+	return dist;
 }
 
 __device__
@@ -419,7 +726,7 @@ float4 spawnShadowRay(float3 intersectPoint, void *intersectedObject, Material *
 }
 
 __device__
-float4 illuminate(Ray ray, int depth,
+float4 traceReflection(Ray ray, int depth,
 			float4 d_ambientLight, float4 d_backgroundColor,
 					uint d_numLights, Light *d_lights,
 					uint d_numTriangles, Triangle *d_triangles,
@@ -489,6 +796,79 @@ float4 illuminate(Ray ray, int depth,
         return d_backgroundColor;
     }
 }
+
+__device__
+float4 illuminate(Ray ray, int depth,
+			float4 d_ambientLight, float4 d_backgroundColor,
+					uint d_numLights, Light *d_lights,
+					uint d_numTriangles, Triangle *d_triangles,
+					uint d_numSpheres, Sphere *d_spheres) {
+    float3 intersectPoint;
+    ObjectType type;
+    void *rt = getClosestIntersection(ray, &intersectPoint, &type,
+    		d_ambientLight, d_backgroundColor,
+			d_numLights, d_lights,
+			d_numTriangles, d_triangles,
+			d_numSpheres, d_spheres);
+
+    if (rt)
+    {
+        float3 intersectNormal;
+		Material *m;
+		if(type == T_Sphere)
+		{
+			Sphere *s = (Sphere *)rt;
+			intersectNormal = Normalize(intersectPoint - s->p);
+			m = &(s->m);
+		} else {
+			Triangle *t = (Triangle *)rt;
+			intersectNormal = t->n;
+			m = &(t->m);
+		}
+
+        //float3 viewVector = Normalize(ray.Position - intersectPoint);
+        float3 viewVector = -ray.Direction;
+        float4 totalLight = make_float4(0,0,0,0);
+        totalLight += calculateAmbient(m, d_ambientLight);
+        totalLight += spawnShadowRay(intersectPoint, rt, m, intersectNormal, viewVector, depth,
+    			d_ambientLight, d_backgroundColor,
+    			d_numLights, d_lights,
+    			d_numTriangles, d_triangles,
+    			d_numSpheres, d_spheres);
+
+        //if (depth < 2)
+        //{
+            float3 incidentVector = Normalize(intersectPoint - ray.Position);
+
+            // Material is reflective
+            if (m->kR > 0)
+            {
+                float3 dir = Reflect(incidentVector, intersectNormal);
+                Ray reflectionRay;
+                reflectionRay.Position = intersectPoint;
+                reflectionRay.Direction = dir;
+                totalLight += m->kR * traceReflection(reflectionRay, depth + 1,
+            			d_ambientLight, d_backgroundColor,
+            			d_numLights, d_lights,
+            			d_numTriangles, d_triangles,
+            			d_numSpheres, d_spheres);
+            }
+
+            // Material is transparent
+            //if (m->kT > 0)
+            //{
+            //    totalLight = totalLight + spawnTransmissionRay(depth, intersectPoint, rt, intersectNormal, incidentVector);
+            //}
+        //}
+
+        return totalLight;
+    }
+    else
+    {
+        return d_backgroundColor;
+    }
+}
+
 /*
 /// <summary>
 /// Spawns a recursive, transmitted (refracted) ray.
@@ -574,7 +954,8 @@ __device__ uint rgbaFloatToInt(float4 rgba)
 }
 
 __global__ void
-d_render(uint *d_output, uint d_width, uint d_height,
+d_render2(uint *d_output, Ray *d_rayTable,
+		uint d_width, uint d_height,
 		float4 ambientLight, float4 backgroundColor,
 		uint numLights, Light *lights,
 		uint numTriangles, Triangle *triangles,
@@ -586,17 +967,85 @@ d_render(uint *d_output, uint d_width, uint d_height,
 
     if ((x >= d_width) || (y >= d_height)) return;
 
+    Ray ray = d_rayTable[y*d_width + x];
+
+    d_output[y*d_width + x] = rgbaFloatToInt(illuminate(ray, 1,
+			ambientLight, backgroundColor,
+			numLights, lights,
+			numTriangles, triangles,
+			numSpheres, spheres));
+}
+
+__global__ void
+d_render(uint *d_output,
+		//float3 camPos, float3 camTar, float3 camUp,
+		//float fovy, float near, float far,
+		uint d_width, uint d_height,
+		float4 ambientLight, float4 backgroundColor,
+		uint numLights, Light *lights,
+		uint numTriangles, Triangle *triangles,
+		uint numSpheres, Sphere *spheres)
+{
+	uint x, y;
+	x = blockIdx.x * blockDim.x + threadIdx.x;
+	y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if ((x >= d_width) || (y >= d_height)) return;
+
+    // unproject
+//    float4x4 model;
+//    float4x4 proj;
+//    uint view[4];
+//    view.z = d_width;
+//    view[3] = d_height;
+//
+//    float3 s, mU, f;
+//    f = normalize(camTar - camPos);
+//    s = f * camUp;
+//    mU = s * f;
+//
+//    model.m[0].x = s.x; model.m[0].y = s.y; model.m[0].z = s.z; model.m[0].w = -camPos.x;
+//    model.m[1].x = mU.x; model.m[1].y = mU.y; model.m[1].z = mU.z; model.m[1].w = -camPos.y;
+//    model.m[2].x = -f.x; model.m[2].y = -f.y; model.m[2].z = -f.z; model.m[2].w = -camPos.z;
+//    model.m[3].x = 0; model.m[3].y = 0; model.m[3].z = 0; model.m[3].w = 1;
+//
+//    float pF = 1.0f / tan(fovy / 2.0f);
+//    proj.m[0].x = pF / float(d_width) / d_height;
+//    proj.m[1].y =  pF;
+//    proj.m[2].z = (far + near) / (far - near);
+//    proj.m[2].w = (2 * far * near) / (near - far);
+//    proj.m[3].z = -1;
+
     float u = (x / (float) d_width)*2.0f-1.0f;
     float v = (y / (float) d_height)*2.0f-1.0f;
 
-    float4 p = c_invViewMatrix * make_float4(0.0f, 0.0f, 0.0f, 1.0f);
+    float4 eye = c_invViewMatrix * make_float4(u, v, -1.0f, 1.0f);
+    eye.w = 1.0f/eye.w;
+    eye.x=eye.x*eye.w;
+    eye.y=eye.y*eye.w;
+    eye.z=eye.z*eye.w;
+
+    float4 tar = c_invViewMatrix * make_float4(u, v, 1.0f, 1.0f);
+    tar.w = 1.0f/tar.w;
+    tar.x=tar.x*tar.w;
+    tar.y=tar.y*tar.w;
+    tar.z=tar.z*tar.w;
+
+    float4 dir = Normalize(tar - eye);
 
     Ray ray;
-    ray.Position.x = p.x;
-    ray.Position.y = p.y;
-    ray.Position.z = p.z;
-    ray.Direction = Normalize(make_float3(u, v, -2.0f));
-    ray.Direction = c_invViewMatrix * ray.Direction;
+    ray.Position.x = eye.x;// + dir.x * 0.1f;
+    ray.Position.y = eye.y;// + dir.z * 0.1f;
+    ray.Position.z = eye.z;// + dir.z * 0.1f;
+    ray.Direction.x = dir.x;
+    ray.Direction.y = dir.y;
+    ray.Direction.z = dir.z;
+    //ray = d_rayTable[y*d_width + x];
+
+    // calculate eye ray in world space
+//    ray.Position = make_float3(mul(c_invViewMatrix, make_float4(0.0f, 0.0f, 0.0f, 1.0f)));
+//    ray.Direction = normalize(make_float3(u, v, -2.0f));
+//    ray.Direction = mul(c_invViewMatrix, ray.Direction);
 
     //d_output[y*d_width + x] = rgbaFloatToInt(backgroundColor);
     //d_output[y*d_width + x] = rgbaFloatToInt(make_float4(1,0,0,1));
@@ -642,6 +1091,7 @@ __global__ void test_intersect(uint *d_output, uint d_width, uint d_height, Sphe
 
 extern "C"
 void render_kernel(dim3 gridSize, dim3 blockSize, uint *d_output,
+		//float3 camPos, float3 camTar, float3 camUp, float fovy, float near, float far,
 		uint width, uint height, float4 ambientLight, float4 backgroundColor,
 				uint numLights, Light *lights,
 				uint numTriangles, Triangle *triangles,
@@ -681,7 +1131,10 @@ void render_kernel(dim3 gridSize, dim3 blockSize, uint *d_output,
 	cutilSafeCall(cudaMalloc((void **)&d_spheres, sizeSpheres));
 	cutilSafeCall(cudaMemcpy(d_spheres, spheres, sizeSpheres, cudaMemcpyHostToDevice));
 
-	d_render<<<gridSize, blockSize>>>( d_output, width, height,
+	d_render<<<gridSize, blockSize>>>( d_output,
+			//d_rayTable,
+			width, height,
+			//camPos, camTar, camUp, fovy, near, far,
 			ambientLight, backgroundColor,
 			numLights, d_lights,
 			numTriangles, d_triangles,
@@ -693,4 +1146,43 @@ void render_kernel(dim3 gridSize, dim3 blockSize, uint *d_output,
 	//test_intersect<<<gridSize, blockSize>>>( d_output, width, height, &d_spheres[0]);
 }
 
+extern "C"
+void render_kernel2(dim3 gridSize, dim3 blockSize, uint *d_output, Ray *d_rayTable,
+		uint width, uint height, float4 ambientLight, float4 backgroundColor,
+				uint numLights, Light *lights,
+				uint numTriangles, Triangle *triangles,
+				uint numSpheres, Sphere *spheres)
+{
+	Light *d_lights;
+	Triangle *d_triangles;
+	Sphere *d_spheres;
+
+	//cudaMemcpyToSymbol(d_numLights, &numLights, sizeof(uint));
+	size_t sizeLights = numLights * sizeof(Light);
+	cutilSafeCall(cudaMalloc((void **)&d_lights, sizeLights));
+	cutilSafeCall(cudaMemcpy(d_lights, lights, sizeLights, cudaMemcpyHostToDevice));
+
+	//cudaMemcpyToSymbol(d_numTriangles, &numTriangles, sizeof(uint));
+	size_t sizeTriangles = numTriangles * sizeof(Triangle);
+	cutilSafeCall(cudaMalloc((void **)&d_triangles, sizeTriangles));
+	cutilSafeCall(cudaMemcpy(d_triangles, triangles, sizeTriangles, cudaMemcpyHostToDevice));
+
+	//cudaMemcpyToSymbol(d_numSpheres, &numSpheres, sizeof(uint));
+	size_t sizeSpheres = numSpheres * sizeof(Sphere);
+	cutilSafeCall(cudaMalloc((void **)&d_spheres, sizeSpheres));
+	cutilSafeCall(cudaMemcpy(d_spheres, spheres, sizeSpheres, cudaMemcpyHostToDevice));
+
+	d_render2<<<gridSize, blockSize>>>( d_output,
+			d_rayTable,
+			width, height,
+			//camPos, camTar, camUp, fovy, near, far,
+			ambientLight, backgroundColor,
+			numLights, d_lights,
+			numTriangles, d_triangles,
+			numSpheres, d_spheres);
+
+	cutilSafeCall(cudaFree(d_lights));
+	cutilSafeCall(cudaFree(d_triangles));
+	cutilSafeCall(cudaFree(d_spheres));
+}
 #endif // #ifndef _VOLUMERENDER_KERNEL_CU_

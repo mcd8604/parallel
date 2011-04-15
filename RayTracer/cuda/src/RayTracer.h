@@ -40,6 +40,11 @@ struct float3x4
 	float4 m[3];
 };
 
+struct float4x4
+{
+	float4 m[4];
+};
+
 struct Ray {
 	float3 Position;
 	float3 Direction;

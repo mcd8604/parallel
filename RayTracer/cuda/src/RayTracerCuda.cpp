@@ -30,6 +30,7 @@
 
 // Utilities and System includes
 #include <shrUtils.h>
+#include <cutil_math.h>
 #include <cutil_inline.h>
 #include <cutil_gl_inline.h>
 
@@ -69,13 +70,14 @@ typedef unsigned char VolumeType;
 //cudaExtent volumeSize = make_cudaExtent(416, 512, 112);
 //typedef unsigned short VolumeType;
 
-uint width = 512, height = 512;
+uint width = 800, height = 600;
 dim3 blockSize(16, 16);
 dim3 gridSize;
 
 float3 viewRotation;
 float3 viewTranslation = make_float3(0.0, 0.0, -4.0f);
 float invViewMatrix[12];
+Ray *rayTable;
 
 float density = 0.05f;
 float brightness = 1.0f;
@@ -83,6 +85,7 @@ float transferOffset = 0.0f;
 float transferScale = 1.0f;
 bool linearFiltering = true;
 
+bool unprojectGPU = true;
 float3 camPos;
 float3 camTar;
 float3 camUp;
@@ -123,13 +126,21 @@ CheckRender       *g_CheckRender = NULL;
 #define MAX(a,b) ((a > b) ? a : b)
 
 extern "C" void render_kernel(dim3 gridSize, dim3 blockSize, uint *d_output,
+		//float3 camPos, float3 camTar, float3 camUp, float fovy, float near, float far,
 		uint width, uint height, float4 ambientLight, float4 backgroundColor,
-				uint numLights, Light *lights,
-				uint numTriangles, Triangle *triangles,
-				uint numSpheres, Sphere *spheres);
+		uint numLights, Light *lights,
+		uint numTriangles, Triangle *triangles,
+		uint numSpheres, Sphere *spheres);
+extern "C" void render_kernel2(dim3 gridSize, dim3 blockSize, uint *d_output,
+		Ray *rayTable,
+		uint width, uint height, float4 ambientLight, float4 backgroundColor,
+		uint numLights, Light *lights,
+		uint numTriangles, Triangle *triangles,
+		uint numSpheres, Sphere *spheres);
 extern "C" void copyInvViewMatrix(float *invViewMatrix, size_t sizeofMatrix);
 
 void initPixelBuffer();
+void updateView();
 
 //void SetSceneData(uint width, uint height, float4 backgroundColor, float4 ambientLight,
 		//unsigned int numLights, Light *lights, unsigned int numTriangles, Triangle *triangles, unsigned int numSpheres, Sphere *spheres);
@@ -139,7 +150,8 @@ void GetSceneData()
 {
 	// TODO: read initialization data from file, data source, or user input
 
-	camPos = make_float3(3, 5, 15);
+	camPos = make_float3(3, 4, 15);
+	viewTranslation = make_float3(-3, -4, -15);
 	camTar = make_float3(3, 0, -70);
 	camUp = make_float3(0, 1, 0);
 	fovy = 45.0;
@@ -183,7 +195,7 @@ void GetSceneData()
 	triangles[1] = floor2;
 
     Sphere sphere1;
-	sphere1.p = make_float3(0, 1, -30);
+	sphere1.p = make_float3(3, 4, 11);
 	sphere1.r = 1;
 	// glass material
     Material glass;
@@ -200,7 +212,7 @@ void GetSceneData()
     sphere1.m = glass;
 
     Sphere sphere2;
-	sphere2.p = make_float3(-4.5, 0, -25);
+	sphere2.p = make_float3(1.5, 3, 9);
 	sphere2.r = 1;
 	// mirror material
     Material mirror;
@@ -270,14 +282,32 @@ void render()
     // clear image
     cutilSafeCall(cudaMemset(d_output, 0, width*height*4));
 
+
     // call CUDA kernel, writing results to PBO
-    render_kernel(gridSize, blockSize, d_output, width, height,
-    		ambientLight, backgroundColor,
-			numLights, lights,
-			numTriangles, triangles,
-			numSpheres, spheres);
+    if(unprojectGPU)
+		render_kernel(gridSize, blockSize, d_output,
+				//camPos, camTar, camUp, fovy, near, far,
+				width, height,
+				ambientLight, backgroundColor,
+				numLights, lights,
+				numTriangles, triangles,
+				numSpheres, spheres);
+    else
+    {
+        Ray *d_rayTable;
+        cutilSafeCall(cudaMalloc((void **)&d_rayTable, width * height * sizeof(Ray)));
+        cutilSafeCall(cudaMemcpy(d_rayTable, rayTable, width * height * sizeof(Ray), cudaMemcpyHostToDevice));
+		render_kernel2(gridSize, blockSize, d_output, d_rayTable,
+				width, height,
+				ambientLight, backgroundColor,
+				numLights, lights,
+				numTriangles, triangles,
+				numSpheres, spheres);
+	    cutilSafeCall(cudaFree(d_rayTable));
+    }
 
     cutilCheckMsg("kernel failed");
+
 
     cutilSafeCall(cudaGraphicsUnmapResources(1, &cuda_pbo_resource, 0));
 }
@@ -353,44 +383,26 @@ void keyboard(unsigned char key, int x, int y)
         case 27:
             exit(0);
             break;
-        case '=':
-            density += 0.01;
+        case 'w':
+        	camPos.z -= 1;
             break;
-        case '-':
-            density -= 0.01;
+        case 's':
+        	camPos.z += 1;
             break;
-        case '+':
-            density += 0.1;
+        case 'a':
+        	camPos.x -= 0.1;
             break;
-        case '_':
-            density -= 0.1;
+        case 'd':
+        	camPos.x += 0.1;
             break;
-
-        case ']':
-            brightness += 0.1;
-            break;
-        case '[':
-            brightness -= 0.1;
-            break;
-
-        case ';':
-            transferOffset += 0.01;
-            break;
-        case '\'':
-            transferOffset -= 0.01;
-            break;
-
-        case '.':
-            transferScale += 0.01;
-            break;
-        case ',':
-            transferScale -= 0.01;
-            break;
-
+        case 'q':
+        	unprojectGPU = !unprojectGPU;
+        	break;
         default:
             break;
     }
-    shrLog("density = %.2f, brightness = %.2f, transferOffset = %.2f, transferScale = %.2f\n", density, brightness, transferOffset, transferScale);
+    //shrLog("spheres[0].p.z = %.2f, \n", spheres[0].p.z);
+    updateView();
     glutPostRedisplay();
 }
 
@@ -416,20 +428,26 @@ void motion(int x, int y)
 
     if (buttonState == 4) {
         // right = zoom
-        viewTranslation.z += dy / 100.0;
+        //viewTranslation.z += dy / 100.0;
+    	//camPos.z += dy / 100.0;
     } 
     else if (buttonState == 2) {
         // middle = translate
-        viewTranslation.x += dx / 100.0;
-        viewTranslation.y -= dy / 100.0;
+        //viewTranslation.x += dx / 100.0;
+        //viewTranslation.y -= dy / 100.0;
+    	//camPos.x += dx / 100.0;
+    	//camPos.y -= dy / 100.0;
     }
     else if (buttonState == 1) {
         // left = rotate
-        viewRotation.x += dy / 5.0;
-        viewRotation.y += dx / 5.0;
+        //viewRotation.x += dy / 5.0;
+        //viewRotation.y += dx / 5.0;
+        //camTar.x += dy / 5.0;
+        //camTar.y += dx / 5.0;
     }
 
     ox = x; oy = y;
+    updateView();
     glutPostRedisplay();
 }
 
@@ -534,9 +552,260 @@ void *loadRawFile(char *filename, size_t size)
     return data;
 }
 
+#define SWAP_ROWS_DOUBLE(a, b) { double *_tmp = a; (a)=(b); (b)=_tmp; }
+#define SWAP_ROWS_FLOAT(a, b) { float *_tmp = a; (a)=(b); (b)=_tmp; }
+#define MAT(m,r,c) (m)[(c)*4+(r)]
+//This code comes directly from GLU except that it is for float
+int glhInvertMatrixf2(float *m, float *out)
+{
+float wtmp[4][8];
+float m0, m1, m2, m3, s;
+float *r0, *r1, *r2, *r3;
+r0 = wtmp[0], r1 = wtmp[1], r2 = wtmp[2], r3 = wtmp[3];
+r0[0] = MAT(m, 0, 0), r0[1] = MAT(m, 0, 1),
+  r0[2] = MAT(m, 0, 2), r0[3] = MAT(m, 0, 3),
+  r0[4] = 1.0, r0[5] = r0[6] = r0[7] = 0.0,
+  r1[0] = MAT(m, 1, 0), r1[1] = MAT(m, 1, 1),
+  r1[2] = MAT(m, 1, 2), r1[3] = MAT(m, 1, 3),
+  r1[5] = 1.0, r1[4] = r1[6] = r1[7] = 0.0,
+  r2[0] = MAT(m, 2, 0), r2[1] = MAT(m, 2, 1),
+  r2[2] = MAT(m, 2, 2), r2[3] = MAT(m, 2, 3),
+  r2[6] = 1.0, r2[4] = r2[5] = r2[7] = 0.0,
+  r3[0] = MAT(m, 3, 0), r3[1] = MAT(m, 3, 1),
+  r3[2] = MAT(m, 3, 2), r3[3] = MAT(m, 3, 3),
+  r3[7] = 1.0, r3[4] = r3[5] = r3[6] = 0.0;
+/* choose pivot - or die */
+if (fabsf(r3[0]) > fabsf(r2[0]))
+  SWAP_ROWS_FLOAT(r3, r2);
+if (fabsf(r2[0]) > fabsf(r1[0]))
+  SWAP_ROWS_FLOAT(r2, r1);
+if (fabsf(r1[0]) > fabsf(r0[0]))
+  SWAP_ROWS_FLOAT(r1, r0);
+if (0.0 == r0[0])
+  return 0;
+/* eliminate first variable     */
+m1 = r1[0] / r0[0];
+m2 = r2[0] / r0[0];
+m3 = r3[0] / r0[0];
+s = r0[1];
+r1[1] -= m1 * s;
+r2[1] -= m2 * s;
+r3[1] -= m3 * s;
+s = r0[2];
+r1[2] -= m1 * s;
+r2[2] -= m2 * s;
+r3[2] -= m3 * s;
+s = r0[3];
+r1[3] -= m1 * s;
+r2[3] -= m2 * s;
+r3[3] -= m3 * s;
+s = r0[4];
+if (s != 0.0) {
+  r1[4] -= m1 * s;
+  r2[4] -= m2 * s;
+  r3[4] -= m3 * s;
+}
+s = r0[5];
+if (s != 0.0) {
+  r1[5] -= m1 * s;
+  r2[5] -= m2 * s;
+  r3[5] -= m3 * s;
+}
+s = r0[6];
+if (s != 0.0) {
+  r1[6] -= m1 * s;
+  r2[6] -= m2 * s;
+  r3[6] -= m3 * s;
+}
+s = r0[7];
+if (s != 0.0) {
+  r1[7] -= m1 * s;
+  r2[7] -= m2 * s;
+  r3[7] -= m3 * s;
+}
+/* choose pivot - or die */
+if (fabsf(r3[1]) > fabsf(r2[1]))
+  SWAP_ROWS_FLOAT(r3, r2);
+if (fabsf(r2[1]) > fabsf(r1[1]))
+  SWAP_ROWS_FLOAT(r2, r1);
+if (0.0 == r1[1])
+  return 0;
+/* eliminate second variable */
+m2 = r2[1] / r1[1];
+m3 = r3[1] / r1[1];
+r2[2] -= m2 * r1[2];
+r3[2] -= m3 * r1[2];
+r2[3] -= m2 * r1[3];
+r3[3] -= m3 * r1[3];
+s = r1[4];
+if (0.0 != s) {
+  r2[4] -= m2 * s;
+  r3[4] -= m3 * s;
+}
+s = r1[5];
+if (0.0 != s) {
+  r2[5] -= m2 * s;
+  r3[5] -= m3 * s;
+}
+s = r1[6];
+if (0.0 != s) {
+  r2[6] -= m2 * s;
+  r3[6] -= m3 * s;
+}
+s = r1[7];
+if (0.0 != s) {
+  r2[7] -= m2 * s;
+  r3[7] -= m3 * s;
+}
+/* choose pivot - or die */
+if (fabsf(r3[2]) > fabsf(r2[2]))
+  SWAP_ROWS_FLOAT(r3, r2);
+if (0.0 == r2[2])
+  return 0;
+/* eliminate third variable */
+m3 = r3[2] / r2[2];
+r3[3] -= m3 * r2[3], r3[4] -= m3 * r2[4],
+  r3[5] -= m3 * r2[5], r3[6] -= m3 * r2[6], r3[7] -= m3 * r2[7];
+/* last check */
+if (0.0 == r3[3])
+  return 0;
+s = 1.0 / r3[3];		/* now back substitute row 3 */
+r3[4] *= s;
+r3[5] *= s;
+r3[6] *= s;
+r3[7] *= s;
+m2 = r2[3];			/* now back substitute row 2 */
+s = 1.0 / r2[2];
+r2[4] = s * (r2[4] - r3[4] * m2), r2[5] = s * (r2[5] - r3[5] * m2),
+  r2[6] = s * (r2[6] - r3[6] * m2), r2[7] = s * (r2[7] - r3[7] * m2);
+m1 = r1[3];
+r1[4] -= r3[4] * m1, r1[5] -= r3[5] * m1,
+  r1[6] -= r3[6] * m1, r1[7] -= r3[7] * m1;
+m0 = r0[3];
+r0[4] -= r3[4] * m0, r0[5] -= r3[5] * m0,
+  r0[6] -= r3[6] * m0, r0[7] -= r3[7] * m0;
+m1 = r1[2];			/* now back substitute row 1 */
+s = 1.0 / r1[1];
+r1[4] = s * (r1[4] - r2[4] * m1), r1[5] = s * (r1[5] - r2[5] * m1),
+  r1[6] = s * (r1[6] - r2[6] * m1), r1[7] = s * (r1[7] - r2[7] * m1);
+m0 = r0[2];
+r0[4] -= r2[4] * m0, r0[5] -= r2[5] * m0,
+  r0[6] -= r2[6] * m0, r0[7] -= r2[7] * m0;
+m0 = r0[1];			/* now back substitute row 0 */
+s = 1.0 / r0[0];
+r0[4] = s * (r0[4] - r1[4] * m0), r0[5] = s * (r0[5] - r1[5] * m0),
+  r0[6] = s * (r0[6] - r1[6] * m0), r0[7] = s * (r0[7] - r1[7] * m0);
+MAT(out, 0, 0) = r0[4];
+MAT(out, 0, 1) = r0[5], MAT(out, 0, 2) = r0[6];
+MAT(out, 0, 3) = r0[7], MAT(out, 1, 0) = r1[4];
+MAT(out, 1, 1) = r1[5], MAT(out, 1, 2) = r1[6];
+MAT(out, 1, 3) = r1[7], MAT(out, 2, 0) = r2[4];
+MAT(out, 2, 1) = r2[5], MAT(out, 2, 2) = r2[6];
+MAT(out, 2, 3) = r2[7], MAT(out, 3, 0) = r3[4];
+MAT(out, 3, 1) = r3[5], MAT(out, 3, 2) = r3[6];
+MAT(out, 3, 3) = r3[7];
+return 1;
+}
+
+void unproject() {
+	// use OpenGL to unproject
+
+	if(!rayTable)
+		rayTable = (Ray *)malloc(sizeof(Ray) * width * height);
+
+	GLdouble model[16];
+	GLdouble proj[16];
+	GLint view[4];
+	view[0] = 0;
+	view[1] = 0;
+	view[2] = width;
+	view[3] = height;
+
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	gluPerspective(fovy, GLdouble(width)/height, near, far);
+	glGetDoublev(GL_PROJECTION_MATRIX, proj);
+	glPopMatrix();
+
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+	gluLookAt(camPos.x, camPos.y, camPos.z,
+			camTar.x, camTar.y, camTar.z,
+			camUp.x, camUp.y, camUp.z);
+	glGetDoublev(GL_MODELVIEW_MATRIX, model);
+	//glGetIntegerv(GL_VIEWPORT, view);
+	glPopMatrix();
+
+	int x, y;
+	for(y = 0; y < height; ++y)
+	{
+		for(x = 0; x < width; ++x)
+		{
+			GLdouble coords[3];
+			gluUnProject(x, y, 0, model, proj, view, &coords[0], &coords[1], &coords[2]);
+			float3 rayS = make_float3(coords[0],coords[1],coords[2]);
+			gluUnProject(x, y, 1, model, proj, view, &coords[0], &coords[1], &coords[2]);
+			float3 rayE = make_float3(coords[0],coords[1],coords[2]);
+
+			Ray r;
+			r.Position = rayS;
+			r.Direction = normalize(rayE - rayS);
+			rayTable[x + y * width] = r;
+		}
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Program main
 ////////////////////////////////////////////////////////////////////////////////
+void updateView()
+{
+    GLfloat mvp[16];
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+    gluPerspective(fovy, GLdouble(width)/height, near, far);
+    gluLookAt(camPos.x, camPos.y, camPos.z,
+    		camTar.x, camTar.y, camTar.z,
+    		camUp.x, camUp.y, camUp.z);
+    glGetFloatv(GL_MODELVIEW_MATRIX, mvp);
+    glPopMatrix();
+    glLoadIdentity();
+
+//	shrLog("%f %f %f %f\n", mvp[0], mvp[1], mvp[2], mvp[3]);
+//	shrLog("%f %f %f %f\n", mvp[4], mvp[5], mvp[6], mvp[7]);
+//	shrLog("%f %f %f %f\n", mvp[8], mvp[9], mvp[10], mvp[11]);
+//	shrLog("%f %f %f %f\n\n", mvp[12], mvp[13], mvp[14], mvp[15]);
+
+    if(unprojectGPU)
+    {
+		float inverse[16];
+		glhInvertMatrixf2(mvp, inverse);
+		float transpose[16];
+		transpose[0] = inverse[0];
+		transpose[1] = inverse[4];
+		transpose[2] = inverse[8];
+		transpose[3] = inverse[12];
+		transpose[4] = inverse[1];
+		transpose[5] = inverse[5];
+		transpose[6] = inverse[9];
+		transpose[7] = inverse[13];
+		transpose[8] = inverse[2];
+		transpose[9] = inverse[6];
+		transpose[10] = inverse[10];
+		transpose[11] = inverse[14];
+		transpose[12] = inverse[3];
+		transpose[13] = inverse[7];
+		transpose[14] = inverse[11];
+		transpose[15] = inverse[15];
+		copyInvViewMatrix(transpose, sizeof (float4) * 4);
+    } else {
+    	unproject();
+    }
+}
+
 int
 main( int argc, char** argv) 
 {
@@ -693,34 +962,14 @@ main( int argc, char** argv)
         }
 
     } else {
-        // This is the normal rendering path for VolumeRender
-        glutDisplayFunc(display);
-        glutKeyboardFunc(keyboard);
-        glutMouseFunc(mouse);
-        glutMotionFunc(motion);
-        glutReshapeFunc(reshape);
-        glutIdleFunc(idle);
-
-    	GetSceneData();
-    	//SetSceneData(width, height, ambientLight, backgroundColor,
-    			//numLights, lights, numTriangles, triangles, numSpheres, spheres);
-
-    	GLfloat modelView[16];
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-            glLoadIdentity();
-    		gluLookAt(camPos.x, camPos.y, camPos.z,
-    			camTar.x, camTar.y, camTar.z,
-    			camUp.x, camUp.y, camUp.z);
-        glGetFloatv(GL_MODELVIEW_MATRIX, modelView);
-        glPopMatrix();
-
-    	float invViewMatrix[12];
-        invViewMatrix[0] = modelView[0]; invViewMatrix[1] = modelView[4]; invViewMatrix[2] = modelView[8]; invViewMatrix[3] = modelView[12];
-        invViewMatrix[4] = modelView[1]; invViewMatrix[5] = modelView[5]; invViewMatrix[6] = modelView[9]; invViewMatrix[7] = modelView[13];
-        invViewMatrix[8] = modelView[2]; invViewMatrix[9] = modelView[6]; invViewMatrix[10] = modelView[10]; invViewMatrix[11] = modelView[14];
-
-    	copyInvViewMatrix(invViewMatrix, sizeof(float4)*3);
+		glutDisplayFunc(display);
+		glutKeyboardFunc(keyboard);
+		glutMouseFunc(mouse);
+		glutMotionFunc(motion);
+		glutReshapeFunc(reshape);
+		glutIdleFunc(idle);
+		GetSceneData();
+		updateView();
 
         initPixelBuffer();
 
