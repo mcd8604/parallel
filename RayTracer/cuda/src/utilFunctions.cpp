@@ -1,4 +1,9 @@
 
+#ifndef UTILFUNCTIONS
+#define UTILFUNCTIONS
+
+#include <math.h>
+
 #define SWAP_ROWS_DOUBLE(a, b) { double *_tmp = a; (a)=(b); (b)=_tmp; }
 #define SWAP_ROWS_FLOAT(a, b) { float *_tmp = a; (a)=(b); (b)=_tmp; }
 #define MAT(m,r,c) (m)[(c)*4+(r)]
@@ -416,3 +421,5 @@ int glhUnProjectf(float winx, float winy, float winz, float *modelview, float *p
   return 1;
  }
 */
+
+#endif // UTILFUNCTIONS

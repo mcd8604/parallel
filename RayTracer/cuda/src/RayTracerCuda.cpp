@@ -122,7 +122,6 @@ void GetSceneData()
 	// TODO: read initialization data from file, data source, or user input
 
 	camPos = make_float3(3, 4, 15);
-	viewTranslation = make_float3(-3, -4, -15);
 	camTar = make_float3(3, 0, -70);
 	camUp = make_float3(0, 1, 0);
 	fovy = 45.0;
