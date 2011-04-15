@@ -48,6 +48,7 @@ const char *sReference[] =
 const char *sSDKsample = "CUDA 3D Ray Tracer";
 
 uint width = 640, height = 480;
+uint depth = 1;
 dim3 blockSize(12, 12);
 dim3 gridSize;
 
@@ -102,7 +103,8 @@ CheckRender       *g_CheckRender = NULL;
 //		uint numSpheres, Sphere *spheres);
 extern "C" void render_kernel2(dim3 gridSize, dim3 blockSize, uint *d_output,
 		Ray *rayTable,
-		uint width, uint height, float4 ambientLight, float4 backgroundColor,
+		uint width, uint height, uint depth, 
+		float4 ambientLight, float4 backgroundColor,
 		uint numLights, Light *lights,
 		uint numTriangles, Triangle *triangles,
 		uint numSpheres, Sphere *spheres);
@@ -271,7 +273,7 @@ void render()
         cutilSafeCall(cudaMalloc((void **)&d_rayTable, width * height * sizeof(Ray)));
         cutilSafeCall(cudaMemcpy(d_rayTable, rayTable, width * height * sizeof(Ray), cudaMemcpyHostToDevice));
 		render_kernel2(gridSize, blockSize, d_output, d_rayTable,
-				width, height,
+				width, height, depth,
 				ambientLight, backgroundColor,
 				numLights, lights,
 				numTriangles, triangles,
@@ -370,6 +372,12 @@ void keyboard(unsigned char key, int x, int y)
             break;
         case 'q':
         	unprojectGPU = !unprojectGPU;
+        	break;
+        case '[':
+        	--depth;
+        	break;
+        case ']':
+        	++depth;
         	break;
         default:
             break;

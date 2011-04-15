@@ -363,7 +363,7 @@ float4 calculateSpecular(float4 specularColor, float specularStrength, float exp
 __device__
 float4 spawnShadowRay(float3 intersectPoint, int objI, 
 		Material *m, float4 ambientColor, float4 diffuseColor, float4 specularColor,
-		float3 intersectNormal, float3 viewVector, int depth,
+		float3 intersectNormal, float3 viewVector,
 		float4 d_ambientLight, float4 d_backgroundColor,
 		uint d_numLights, Light *d_lights,
 		uint d_numTriangles, Triangle *d_triangles,
@@ -420,7 +420,7 @@ float4 spawnShadowRay(float3 intersectPoint, int objI,
 }
 
 __device__
-float4 traceReflection(Ray ray, int depth,
+float4 illuminate(Ray ray, Ray *reflectionRay, float *kR,
 			float4 d_ambientLight, float4 d_backgroundColor,
 					uint d_numLights, Light *d_lights,
 					uint d_numTriangles, Triangle *d_triangles,
@@ -432,7 +432,7 @@ float4 traceReflection(Ray ray, int depth,
 			d_numLights, d_lights,
 			d_numTriangles, d_triangles,
 			d_numSpheres, d_spheres);
-
+    
     if (i >= 0)
     {
     	float4 ambientColor, diffuseColor, specularColor;
@@ -491,152 +491,34 @@ float4 traceReflection(Ray ray, int depth,
         totalLight += d_ambientLight * ambientColor * m->ambientStrength;
         totalLight += spawnShadowRay(intersectPoint, i, 
         		m, ambientColor, diffuseColor, specularColor, 
-        		intersectNormal, viewVector, depth,
+        		intersectNormal, viewVector,
     			d_ambientLight, d_backgroundColor,
     			d_numLights, d_lights,
     			d_numTriangles, d_triangles,
     			d_numSpheres, d_spheres);
-        
-        /*if (depth < 2)
-        {
-            float3 incidentVector = Normalize(intersectPoint - ray.Position);
 
-            // Material is reflective
-            if (m->kR > 0)
-            {
-                float3 dir = Reflect(incidentVector, intersectNormal);
-                Ray reflectionRay;
-                reflectionRay.Position = intersectPoint;
-                reflectionRay.Direction = dir;
-                totalLight = totalLight + (illuminate(reflectionRay, depth + 1,
-            			d_ambientLight, d_backgroundColor,
-            			d_numLights, d_lights,
-            			d_numTriangles, d_triangles,
-            			d_numSpheres, d_spheres) * m->kR);
-            }
+		float3 incidentVector = Normalize(intersectPoint - ray.Position);
 
-            // Material is transparent
-            if (m->kT > 0)
-            {
-                totalLight = totalLight + spawnTransmissionRay(depth, intersectPoint, rt, intersectNormal, incidentVector);
-            }
-        }*/
-
-        return totalLight;
-    }
-    else
-    {
-        return d_backgroundColor;
-    }
-}
-
-__device__
-float4 illuminate(Ray ray, int depth,
-			float4 d_ambientLight, float4 d_backgroundColor,
-					uint d_numLights, Light *d_lights,
-					uint d_numTriangles, Triangle *d_triangles,
-					uint d_numSpheres, Sphere *d_spheres) {
-    float3 intersectPoint;
-    ObjectType type;
-    int i = getClosestIntersection(ray, &intersectPoint, &type,
-    		d_ambientLight, d_backgroundColor,
-			d_numLights, d_lights,
-			d_numTriangles, d_triangles,
-			d_numSpheres, d_spheres);
-
-    if (i >= 0)
-    {
-    	float4 ambientColor, diffuseColor, specularColor;
-        float3 intersectNormal;
-		Material *m;
-		if(type == T_Sphere)
+		// Material is reflective
+		*kR = m->kR;
+		if (m->kR > 0)
 		{
-			Sphere *s = &d_spheres[i];
-			intersectNormal = Normalize(intersectPoint - s->p);
-			m = &(s->m);
-			ambientColor = m->ambientColor;
-			diffuseColor = m->diffuseColor;
-			specularColor = m->specularColor;
-		} else {
-			Triangle *t = &d_triangles[i];
-			intersectNormal = t->n;
-			m = &(t->m);
-			
-			//NOTE hardcoded checker texture
-			
-			float3 min, max;
-			min.x = fmin(fmin(t->v1.x, t->v2.x), t->v3.x);
-			min.y = fmin(fmin(t->v1.y, t->v2.y), t->v3.y);
-			min.z = fmin(fmin(t->v1.z, t->v2.z), t->v3.z);
-			max.x = fmax(fmax(t->v1.x, t->v2.x), t->v3.x);
-			max.y = fmax(fmax(t->v1.y, t->v2.y), t->v3.y);
-			max.z = fmax(fmax(t->v1.z, t->v2.z), t->v3.z);
-			
-			float u = (intersectPoint.x - min.x) / (max.x - min.x) * 10;
-			float v = (intersectPoint.z - min.z) / (max.z - min.z) * 15;
-			float4 red = make_float4(1, 0, 0, 1);
-			float4 yellow = make_float4(1, 1, 0, 1);
-			float4 c;
-		    if (fmod(u, 1) < 0.5f)
-		    {
-		        if (fmod(v, 1) < 0.5f)
-		        	c = red;// * ambientStrength;
-		        else
-		        	c = yellow;// * ambientStrength;
-		    }
-		    else
-		    {
-		        if (fmod(v, 1) < 0.5f)
-		        	c = yellow;// * ambientStrength;
-		        else
-		        	c = red;// * ambientStrength;
-		    }
-			ambientColor = c;
-			diffuseColor = c;
-			specularColor = c;
+			float3 dir = Reflect(incidentVector, intersectNormal);
+			//Ray reflectionRay;
+			(*reflectionRay).Position = intersectPoint;
+			(*reflectionRay).Direction = dir;			
+//			totalLight += m->kR * traceReflection(reflectionRay, depth + 1,
+//					d_ambientLight, d_backgroundColor,
+//					d_numLights, d_lights,
+//					d_numTriangles, d_triangles,
+//					d_numSpheres, d_spheres);
 		}
 
-        //float3 viewVector = Normalize(ray.Position - intersectPoint);
-        float3 viewVector = -ray.Direction;
-        float4 totalLight = make_float4(0,0,0,0);
-        totalLight += d_ambientLight * ambientColor * m->ambientStrength;
-        totalLight += spawnShadowRay(intersectPoint, i, 
-        		m, ambientColor, diffuseColor, specularColor, 
-        		intersectNormal, viewVector, depth,
-    			d_ambientLight, d_backgroundColor,
-    			d_numLights, d_lights,
-    			d_numTriangles, d_triangles,
-    			d_numSpheres, d_spheres);
-
-        //if (depth < 2)
-        //{
-            float3 incidentVector = Normalize(intersectPoint - ray.Position);
-
-            // Material is reflective
-            if (m->kR > 0)
-            {
-                float3 dir = Reflect(incidentVector, intersectNormal);
-                Ray reflectionRay;
-                reflectionRay.Position = intersectPoint;
-                reflectionRay.Direction = dir;
-                totalLight += m->kR * traceReflection(reflectionRay, depth + 1,
-            			d_ambientLight, d_backgroundColor,
-            			d_numLights, d_lights,
-            			d_numTriangles, d_triangles,
-            			d_numSpheres, d_spheres);
-            }
-
-            // Material is transparent
-            //if (m->kT > 0)
-            //{
-            //    totalLight = totalLight + spawnTransmissionRay(depth, intersectPoint, rt, intersectNormal, incidentVector);
-            //}
-        //}
-
         return totalLight;
     }
     else
     {
+        *kR = 0;
         return d_backgroundColor;
     }
 }
@@ -704,7 +586,7 @@ __device__ uint rgbaFloatToInt(float4 rgba)
 
 __global__ void
 d_render2(uint *d_output, Ray *d_rayTable,
-		uint d_width, uint d_height,
+		uint d_width, uint d_height, uint depth,
 		float4 ambientLight, float4 backgroundColor,
 		uint numLights, Light *lights,
 		uint numTriangles, Triangle *triangles,
@@ -718,11 +600,31 @@ d_render2(uint *d_output, Ray *d_rayTable,
 
     Ray ray = d_rayTable[y*d_width + x];
 
-    d_output[y*d_width + x] = rgbaFloatToInt(illuminate(ray, 1,
-			ambientLight, backgroundColor,
-			numLights, lights,
-			numTriangles, triangles,
-			numSpheres, spheres));
+//    d_output[y*d_width + x] = rgbaFloatToInt(illuminate(ray, 1,
+//			ambientLight, backgroundColor,
+//			numLights, lights,
+//			numTriangles, triangles,
+//			numSpheres, spheres));
+    
+    Ray next;
+    float kR;
+    float4 sum = illuminate(ray, &next, &kR,
+		ambientLight, backgroundColor,
+		numLights, lights,
+		numTriangles, triangles,
+		numSpheres, spheres);
+    int count = 1;
+    while(kR > 0 && count < depth) {
+        ray = next;
+    	sum += kR * illuminate(ray, &next,  &kR,
+    			ambientLight, backgroundColor,
+    			numLights, lights,
+    			numTriangles, triangles,
+    			numSpheres, spheres);
+    	count++;
+    }
+    
+    d_output[y*d_width + x] = rgbaFloatToInt(sum);
 }
 /*
 __global__ void
@@ -897,7 +799,7 @@ void render_kernel(dim3 gridSize, dim3 blockSize, uint *d_output,
 
 extern "C"
 void render_kernel2(dim3 gridSize, dim3 blockSize, uint *d_output, Ray *d_rayTable,
-		uint width, uint height, float4 ambientLight, float4 backgroundColor,
+		uint width, uint height, uint depth, float4 ambientLight, float4 backgroundColor,
 				uint numLights, Light *lights,
 				uint numTriangles, Triangle *triangles,
 				uint numSpheres, Sphere *spheres)
@@ -923,7 +825,7 @@ void render_kernel2(dim3 gridSize, dim3 blockSize, uint *d_output, Ray *d_rayTab
 
 	d_render2<<<gridSize, blockSize>>>( d_output,
 			d_rayTable,
-			width, height,
+			width, height, depth,
 			//camPos, camTar, camUp, fovy, near, far,
 			ambientLight, backgroundColor,
 			numLights, d_lights,
