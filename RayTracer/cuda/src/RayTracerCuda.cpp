@@ -8,21 +8,6 @@
  * is strictly prohibited.
  *
  */
- 
-/*
-    Volume rendering sample
-
-    This sample loads a 3D volume from disk and displays it using
-    ray marching and 3D textures.
-
-    Note - this is intended to be an example of using 3D textures
-    in CUDA, not an optimized volume renderer.
-
-    Changes
-    sgg 22/3/2010
-    - updated to use texture for display instead of glDrawPixels.
-    - changed to render from front-to-back rather than back-to-front.
-*/
 
 // Graphics includes
 #include <GL/glew.h>
@@ -50,40 +35,24 @@ typedef unsigned char uchar;
 // Define the files that are to be save and the reference images for validation
 const char *sOriginal[] =
 {
-    "volume.ppm",
+    "raytracer.ppm",
     NULL
 };
 
 const char *sReference[] =
 {
-    "ref_volume.ppm",
+    "ref_raytracer.ppm",
     NULL
 };
 
-const char *sSDKsample = "CUDA 3D Volume Render";
-
-char *volumeFilename = "Bucky.raw";
-cudaExtent volumeSize = make_cudaExtent(32, 32, 32);
-typedef unsigned char VolumeType;
-
-//char *volumeFilename = "mrt16_angio.raw";
-//cudaExtent volumeSize = make_cudaExtent(416, 512, 112);
-//typedef unsigned short VolumeType;
+const char *sSDKsample = "CUDA 3D Ray Tracer";
 
 uint width = 800, height = 600;
 dim3 blockSize(16, 16);
 dim3 gridSize;
 
-float3 viewRotation;
-float3 viewTranslation = make_float3(0.0, 0.0, -4.0f);
 float invViewMatrix[12];
 Ray *rayTable;
-
-float density = 0.05f;
-float brightness = 1.0f;
-float transferOffset = 0.0f;
-float transferScale = 1.0f;
-bool linearFiltering = true;
 
 bool unprojectGPU = true;
 float3 camPos;
@@ -138,6 +107,8 @@ extern "C" void render_kernel2(dim3 gridSize, dim3 blockSize, uint *d_output,
 		uint numTriangles, Triangle *triangles,
 		uint numSpheres, Sphere *spheres);
 extern "C" void copyInvViewMatrix(float *invViewMatrix, size_t sizeofMatrix);
+
+extern "C" int glhInvertMatrixf2(float *m, float *out);
 
 void initPixelBuffer();
 void updateView();
@@ -236,7 +207,7 @@ void AutoQATest()
 {
     if (g_CheckRender && g_CheckRender->IsQAReadback()) {
         char temp[256];
-        sprintf(temp, "AutoTest: Volume Render");
+        sprintf(temp, "AutoTest: Ray Tracer");
 	    glutSetWindowTitle(temp);
 
 		exit(0);
@@ -253,7 +224,7 @@ void computeFPS()
     if (fpsCount == fpsLimit) {
         char fps[256];
         float ifps = 1.f / (cutGetAverageTimerValue(timer) / 1000.f);
-        sprintf(fps, "%sVolume Render: %3.1f fps", 
+        sprintf(fps, "%sRay Tracer: %3.1f fps", 
                 ((g_CheckRender && g_CheckRender->IsQAReadback()) ? "AutoTest: " : ""), ifps);  
 
         glutSetWindowTitle(fps);
@@ -496,7 +467,7 @@ void initGL(int *argc, char **argv)
     glutInit(argc, argv);
     glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE);
     glutInitWindowSize(width, height);
-    glutCreateWindow("CUDA volume rendering");
+    glutCreateWindow("CUDA ray tracer");
 
     glewInit();
     if (!glewIsSupported("GL_VERSION_2_0 GL_ARB_pixel_buffer_object")) {
@@ -532,179 +503,6 @@ void initPixelBuffer()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glBindTexture(GL_TEXTURE_2D, 0);
-}
-
-// Load raw data from disk
-void *loadRawFile(char *filename, size_t size)
-{
-	FILE *fp = fopen(filename, "rb");
-    if (!fp) {
-        fprintf(stderr, "Error opening file '%s'\n", filename);
-        return 0;
-    }
-
-	void *data = malloc(size);
-	size_t read = fread(data, 1, size, fp);
-	fclose(fp);
-
-    shrLog("Read '%s', %d bytes\n", filename, read);
-
-    return data;
-}
-
-#define SWAP_ROWS_DOUBLE(a, b) { double *_tmp = a; (a)=(b); (b)=_tmp; }
-#define SWAP_ROWS_FLOAT(a, b) { float *_tmp = a; (a)=(b); (b)=_tmp; }
-#define MAT(m,r,c) (m)[(c)*4+(r)]
-//This code comes directly from GLU except that it is for float
-int glhInvertMatrixf2(float *m, float *out)
-{
-float wtmp[4][8];
-float m0, m1, m2, m3, s;
-float *r0, *r1, *r2, *r3;
-r0 = wtmp[0], r1 = wtmp[1], r2 = wtmp[2], r3 = wtmp[3];
-r0[0] = MAT(m, 0, 0), r0[1] = MAT(m, 0, 1),
-  r0[2] = MAT(m, 0, 2), r0[3] = MAT(m, 0, 3),
-  r0[4] = 1.0, r0[5] = r0[6] = r0[7] = 0.0,
-  r1[0] = MAT(m, 1, 0), r1[1] = MAT(m, 1, 1),
-  r1[2] = MAT(m, 1, 2), r1[3] = MAT(m, 1, 3),
-  r1[5] = 1.0, r1[4] = r1[6] = r1[7] = 0.0,
-  r2[0] = MAT(m, 2, 0), r2[1] = MAT(m, 2, 1),
-  r2[2] = MAT(m, 2, 2), r2[3] = MAT(m, 2, 3),
-  r2[6] = 1.0, r2[4] = r2[5] = r2[7] = 0.0,
-  r3[0] = MAT(m, 3, 0), r3[1] = MAT(m, 3, 1),
-  r3[2] = MAT(m, 3, 2), r3[3] = MAT(m, 3, 3),
-  r3[7] = 1.0, r3[4] = r3[5] = r3[6] = 0.0;
-/* choose pivot - or die */
-if (fabsf(r3[0]) > fabsf(r2[0]))
-  SWAP_ROWS_FLOAT(r3, r2);
-if (fabsf(r2[0]) > fabsf(r1[0]))
-  SWAP_ROWS_FLOAT(r2, r1);
-if (fabsf(r1[0]) > fabsf(r0[0]))
-  SWAP_ROWS_FLOAT(r1, r0);
-if (0.0 == r0[0])
-  return 0;
-/* eliminate first variable     */
-m1 = r1[0] / r0[0];
-m2 = r2[0] / r0[0];
-m3 = r3[0] / r0[0];
-s = r0[1];
-r1[1] -= m1 * s;
-r2[1] -= m2 * s;
-r3[1] -= m3 * s;
-s = r0[2];
-r1[2] -= m1 * s;
-r2[2] -= m2 * s;
-r3[2] -= m3 * s;
-s = r0[3];
-r1[3] -= m1 * s;
-r2[3] -= m2 * s;
-r3[3] -= m3 * s;
-s = r0[4];
-if (s != 0.0) {
-  r1[4] -= m1 * s;
-  r2[4] -= m2 * s;
-  r3[4] -= m3 * s;
-}
-s = r0[5];
-if (s != 0.0) {
-  r1[5] -= m1 * s;
-  r2[5] -= m2 * s;
-  r3[5] -= m3 * s;
-}
-s = r0[6];
-if (s != 0.0) {
-  r1[6] -= m1 * s;
-  r2[6] -= m2 * s;
-  r3[6] -= m3 * s;
-}
-s = r0[7];
-if (s != 0.0) {
-  r1[7] -= m1 * s;
-  r2[7] -= m2 * s;
-  r3[7] -= m3 * s;
-}
-/* choose pivot - or die */
-if (fabsf(r3[1]) > fabsf(r2[1]))
-  SWAP_ROWS_FLOAT(r3, r2);
-if (fabsf(r2[1]) > fabsf(r1[1]))
-  SWAP_ROWS_FLOAT(r2, r1);
-if (0.0 == r1[1])
-  return 0;
-/* eliminate second variable */
-m2 = r2[1] / r1[1];
-m3 = r3[1] / r1[1];
-r2[2] -= m2 * r1[2];
-r3[2] -= m3 * r1[2];
-r2[3] -= m2 * r1[3];
-r3[3] -= m3 * r1[3];
-s = r1[4];
-if (0.0 != s) {
-  r2[4] -= m2 * s;
-  r3[4] -= m3 * s;
-}
-s = r1[5];
-if (0.0 != s) {
-  r2[5] -= m2 * s;
-  r3[5] -= m3 * s;
-}
-s = r1[6];
-if (0.0 != s) {
-  r2[6] -= m2 * s;
-  r3[6] -= m3 * s;
-}
-s = r1[7];
-if (0.0 != s) {
-  r2[7] -= m2 * s;
-  r3[7] -= m3 * s;
-}
-/* choose pivot - or die */
-if (fabsf(r3[2]) > fabsf(r2[2]))
-  SWAP_ROWS_FLOAT(r3, r2);
-if (0.0 == r2[2])
-  return 0;
-/* eliminate third variable */
-m3 = r3[2] / r2[2];
-r3[3] -= m3 * r2[3], r3[4] -= m3 * r2[4],
-  r3[5] -= m3 * r2[5], r3[6] -= m3 * r2[6], r3[7] -= m3 * r2[7];
-/* last check */
-if (0.0 == r3[3])
-  return 0;
-s = 1.0 / r3[3];		/* now back substitute row 3 */
-r3[4] *= s;
-r3[5] *= s;
-r3[6] *= s;
-r3[7] *= s;
-m2 = r2[3];			/* now back substitute row 2 */
-s = 1.0 / r2[2];
-r2[4] = s * (r2[4] - r3[4] * m2), r2[5] = s * (r2[5] - r3[5] * m2),
-  r2[6] = s * (r2[6] - r3[6] * m2), r2[7] = s * (r2[7] - r3[7] * m2);
-m1 = r1[3];
-r1[4] -= r3[4] * m1, r1[5] -= r3[5] * m1,
-  r1[6] -= r3[6] * m1, r1[7] -= r3[7] * m1;
-m0 = r0[3];
-r0[4] -= r3[4] * m0, r0[5] -= r3[5] * m0,
-  r0[6] -= r3[6] * m0, r0[7] -= r3[7] * m0;
-m1 = r1[2];			/* now back substitute row 1 */
-s = 1.0 / r1[1];
-r1[4] = s * (r1[4] - r2[4] * m1), r1[5] = s * (r1[5] - r2[5] * m1),
-  r1[6] = s * (r1[6] - r2[6] * m1), r1[7] = s * (r1[7] - r2[7] * m1);
-m0 = r0[2];
-r0[4] -= r2[4] * m0, r0[5] -= r2[5] * m0,
-  r0[6] -= r2[6] * m0, r0[7] -= r2[7] * m0;
-m0 = r0[1];			/* now back substitute row 0 */
-s = 1.0 / r0[0];
-r0[4] = s * (r0[4] - r1[4] * m0), r0[5] = s * (r0[5] - r1[5] * m0),
-  r0[6] = s * (r0[6] - r1[6] * m0), r0[7] = s * (r0[7] - r1[7] * m0);
-MAT(out, 0, 0) = r0[4];
-MAT(out, 0, 1) = r0[5], MAT(out, 0, 2) = r0[6];
-MAT(out, 0, 3) = r0[7], MAT(out, 1, 0) = r1[4];
-MAT(out, 1, 1) = r1[5], MAT(out, 1, 2) = r1[6];
-MAT(out, 1, 3) = r1[7], MAT(out, 2, 0) = r2[4];
-MAT(out, 2, 1) = r2[5], MAT(out, 2, 2) = r2[6];
-MAT(out, 2, 3) = r2[7], MAT(out, 3, 0) = r3[4];
-MAT(out, 3, 1) = r3[5], MAT(out, 3, 2) = r3[6];
-MAT(out, 3, 3) = r3[7];
-return 1;
 }
 
 void unproject() {
@@ -810,7 +608,7 @@ int
 main( int argc, char** argv) 
 {
     //start logs
-    shrSetLogFileName ("volumeRender.txt");
+    shrSetLogFileName ("raytracer.txt");
     shrLog("%s Starting...\n\n", argv[0]); 
 
     if (cutCheckCmdLineFlag(argc, (const char **)argv, "qatest") ||
@@ -857,45 +655,9 @@ main( int argc, char** argv)
         }
 */
 	}
-
-    // parse arguments
-    char *filename;
-    if (cutGetCmdLineArgumentstr( argc, (const char**) argv, "file", &filename)) {
-        volumeFilename = filename;
-    }
-    int n;
-    if (cutGetCmdLineArgumenti( argc, (const char**) argv, "size", &n)) {
-        volumeSize.width = volumeSize.height = volumeSize.depth = n;
-    }
-    if (cutGetCmdLineArgumenti( argc, (const char**) argv, "xsize", &n)) {
-        volumeSize.width = n;
-    }
-    if (cutGetCmdLineArgumenti( argc, (const char**) argv, "ysize", &n)) {
-        volumeSize.height = n;
-    }
-    if (cutGetCmdLineArgumenti( argc, (const char**) argv, "zsize", &n)) {
-         volumeSize.depth = n;
-    }
-
-    // load volume data
-    char* path = shrFindFilePath(volumeFilename, argv[0]);
-    if (path == 0) {
-        shrLog("Error finding file '%s'\n", volumeFilename);
-        exit(EXIT_FAILURE);
-    }
-
-    size_t size = volumeSize.width*volumeSize.height*volumeSize.depth*sizeof(VolumeType);
-    void *h_volume = loadRawFile(path, size);
-    
-    free(h_volume);
-
+	
     cutilCheckError( cutCreateTimer( &timer));
-
-    shrLog("Press '=' and '-' to change density\n"
-           "      ']' and '[' to change brightness\n"
-           "      ';' and ''' to modify transfer function offset\n"
-           "      '.' and ',' to modify transfer function scale\n\n");
-
+	
     // calculate new grid size
     gridSize = dim3(iDivUp(width, blockSize.x), iDivUp(height, blockSize.y));
 
@@ -917,12 +679,12 @@ main( int argc, char** argv)
             0.0f, 0.0f, 4.0f, 1.0f
         };
 
-        invViewMatrix[0] = modelView[0]; invViewMatrix[1] = modelView[4]; invViewMatrix[2] = modelView[8]; invViewMatrix[3] = modelView[12];
-        invViewMatrix[4] = modelView[1]; invViewMatrix[5] = modelView[5]; invViewMatrix[6] = modelView[9]; invViewMatrix[7] = modelView[13];
-        invViewMatrix[8] = modelView[2]; invViewMatrix[9] = modelView[6]; invViewMatrix[10] = modelView[10]; invViewMatrix[11] = modelView[14];
+        //invViewMatrix[0] = modelView[0]; invViewMatrix[1] = modelView[4]; invViewMatrix[2] = modelView[8]; invViewMatrix[3] = modelView[12];
+        //invViewMatrix[4] = modelView[1]; invViewMatrix[5] = modelView[5]; invViewMatrix[6] = modelView[9]; invViewMatrix[7] = modelView[13];
+        //invViewMatrix[8] = modelView[2]; invViewMatrix[9] = modelView[6]; invViewMatrix[10] = modelView[10]; invViewMatrix[11] = modelView[14];
 
         // call CUDA kernel, writing results to PBO
-	    copyInvViewMatrix(invViewMatrix, sizeof(float4)*3);
+	    //copyInvViewMatrix(invViewMatrix, sizeof(float4)*3);
         
         // Start timer 0 and process n loops on the GPU 
         int nIter = 10;
@@ -938,9 +700,9 @@ main( int argc, char** argv)
         cudaThreadSynchronize();
         cutStopTimer(timer);
         // Get elapsed time and throughput, then log to sample and master logs
-        double dAvgTime = cutGetTimerValue(timer)/(nIter * 1000.0);
-        shrLogEx(LOGBOTH | MASTER, 0, "volumeRender, Throughput = %.4f MTexels/s, Time = %.5f s, Size = %u Texels, NumDevsUsed = %u, Workgroup = %u\n", 
-               (1.0e-6 * width * height)/dAvgTime, dAvgTime, (width * height), 1, blockSize.x * blockSize.y); 
+        //double dAvgTime = cutGetTimerValue(timer)/(nIter * 1000.0);
+        //shrLogEx(LOGBOTH | MASTER, 0, "ray tracer, Throughput = %.4f MTexels/s, Time = %.5f s, Size = %u Texels, NumDevsUsed = %u, Workgroup = %u\n", 
+        //      (1.0e-6 * width * height)/dAvgTime, dAvgTime, (width * height), 1, blockSize.x * blockSize.y); 
         
 
         cutilCheckMsg("Error: render_kernel() execution FAILED");
