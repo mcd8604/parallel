@@ -82,6 +82,7 @@ public:
 	Scene();
 	virtual ~Scene();
 	void SetRecursionDepth(int rDepth);
+	int GetRecursionDepth();
 	void SetViewProjection(Vector3 pos, Vector3 tar, Vector3 up,
 			double fovy, unsigned int width, unsigned int height, double near, double far);
 	Vector3 GetCameraPosition();

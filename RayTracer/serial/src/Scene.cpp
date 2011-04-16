@@ -9,7 +9,7 @@
 #include <iostream>
 #include <GL/glut.h>
 
-#define TRANSMIT_SHADOW 1
+#define TRANSMIT_SHADOW 0
 
 namespace RayTracer {
 
@@ -23,6 +23,10 @@ Scene::~Scene() {
 
 void Scene::SetRecursionDepth(int rDepth) {
 	recursionDepth = rDepth;
+}
+
+int Scene::GetRecursionDepth() {
+	return recursionDepth;
 }
 
 void Scene::updateViewProj() {
@@ -165,10 +169,10 @@ Vector4 Scene::Illuminate(Ray ray, int depth) {
             }
 
             // Material is transparent
-            if (m->kT > 0)
-            {
-                totalLight = totalLight + spawnTransmissionRay(depth, intersectPoint, rt, intersectNormal, incidentVector);
-            }
+            //if (m->kT > 0)
+            //{
+            //    totalLight = totalLight + spawnTransmissionRay(depth, intersectPoint, rt, intersectNormal, incidentVector);
+            //}
         }
 
         return totalLight;
@@ -309,8 +313,8 @@ Vector4 Scene::spawnShadowRay(Vector3 intersectPoint, //RTObject *intersectedObj
 
 			if (shadowed)
 			{
-				diffuseTotal = diffuseTotal + intersectedObject->calculateDiffuse(intersectPoint, intersectNormal, light, lightVector) * shadowLight;
-				specularTotal = specularTotal + intersectedObject->calculateSpecular(intersectPoint, intersectNormal, light, lightVector, viewVector) * shadowLight;
+//				diffuseTotal = diffuseTotal + intersectedObject->calculateDiffuse(intersectPoint, intersectNormal, light, lightVector) * shadowLight;
+//				specularTotal = specularTotal + intersectedObject->calculateSpecular(intersectPoint, intersectNormal, light, lightVector, viewVector) * shadowLight;
 			}
 			else
 			{

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <GL/glut.h>
 #include <pthread.h>
+#include <stdio.h>
 
 // Screen size
 #define RES_WIDTH 800.0
@@ -12,6 +13,7 @@ using namespace RayTracer;
 
 float *pixelData;
 Scene *s;
+clock_t start,end;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -44,8 +46,8 @@ void GetSceneData()
 	RTTriangle *floor1 = new RTTriangle(Vector3(8, 0, 16), Vector3(-8, 0, -16), Vector3(8, 0, -16), Vector3(0, 1, 0));
 	RTTriangle *floor2 = new RTTriangle(Vector3(8, 0, 16), Vector3(-8, 0, -16), Vector3(-8, 0, 16), Vector3(0, 1, 0));
     Material *floorMat = new Material();
-    floorMat->ambientStrength = 1;
-    floorMat->diffuseStrength = 1;
+    floorMat->ambientStrength = 0.25;
+    floorMat->diffuseStrength = 0.75;
     //floorMat->setAmbientColor(Vector4(0.2, 1, 0.2, 1));
     //floorMat->setDiffuseColor(Vector4(0.2, 1, 0.2, 1));
     //floorMat->setSpecularColor(Vector4(0.2, 1, 0.2, 1));
@@ -58,16 +60,25 @@ void GetSceneData()
 
     RTObject *sphere1 = new RTSphere(Vector3(3, 4, 11), 1);
     Material *glass = new Material();
-    glass->ambientStrength = 0.075;
-    glass->diffuseStrength = 0.075;
-    glass->specularStrength = 0.7;
-    glass->exponent = 20;
-    glass->setAmbientColor(Vector4(1, 1, 1, 1));
-    glass->setDiffuseColor(Vector4(1, 1, 1, 1));
-    glass->setSpecularColor(Vector4(1, 1, 1, 1));
-    glass->kR = .01;
-    glass->kT = .99;
-    glass->n = .99;
+//    glass->ambientStrength = 0.075;
+//    glass->diffuseStrength = 0.075;
+//    glass->specularStrength = 0.2;
+//    glass->exponent = 20;
+//    glass->setAmbientColor(Vector4(1, 1, 1, 1));
+//    glass->setDiffuseColor(Vector4(1, 1, 1, 1));
+//    glass->setSpecularColor(Vector4(1, 1, 1, 1));
+//    glass->kR = .01;
+//    glass->kT = .99;
+//    glass->n = .99;
+	glass->ambientStrength = 0.15;
+	glass->diffuseStrength = 0.25;
+	glass->specularStrength = 1;
+	glass->exponent = 20;
+	glass->setAmbientColor(Vector4(.7, .7, .7, .7));
+	glass->setDiffuseColor(Vector4(1, 0, 0, 1));
+	glass->setSpecularColor(Vector4(1, 1, 1, 1));
+	glass->kR = .75;
+
     sphere1->SetMaterial(glass);
     s->AddObject(sphere1);
 
@@ -78,7 +89,7 @@ void GetSceneData()
     mirror->specularStrength = 1;
     mirror->exponent = 20;
     mirror->setAmbientColor(Vector4(.7, .7, .7, .7));
-    mirror->setDiffuseColor(Vector4(.7, .7, .7, .7));
+    mirror->setDiffuseColor(Vector4(0, 0, 1, 1));
     mirror->setSpecularColor(Vector4(1, 1, 1, 1));
     mirror->kR = .75;
     sphere2->SetMaterial(mirror);
@@ -90,7 +101,12 @@ void *trace(void *threadID) {
 
 	while(true) {
 		// perform the ray tracing
+		start = clock();
 		s->trace(vectorData);
+		end = clock();
+		double dif = double(end - start) / CLOCKS_PER_SEC;
+		//cout << dif << "\n";
+		printf("%.5f\n", dif);
 		pthread_mutex_lock(&mutex);
 		int i = 0, p = 0;
 		for(;i < RES_WIDTH * RES_HEIGHT; ++i)
@@ -122,6 +138,7 @@ void idle() {
 void keyboard(unsigned char key, int x, int y)
 {
 	Vector3 camPos = s->GetCameraPosition();
+	int d = s->GetRecursionDepth();
     switch(key) {
         case 27:
             exit(0);
@@ -137,6 +154,12 @@ void keyboard(unsigned char key, int x, int y)
             break;
         case 'd':
         	camPos.x += 0.1;
+            break;
+        case '[':
+        	s->SetRecursionDepth(d-1);
+            break;
+        case ']':
+        	s->SetRecursionDepth(d+1);
             break;
 
         default:
