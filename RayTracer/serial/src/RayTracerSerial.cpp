@@ -98,7 +98,7 @@ void GetSceneData()
 //sp - spacing
 void GetScene2Data(int rows, int columns, float r, float sp) {
 	float d = 2 * r;
-	s->SetRecursionDepth(1);
+	s->SetRecursionDepth(3);
 	s->SetBackground(Vector4(.4, .6, .93, 1));
 	s->SetAmbient(Vector4(.3, .3, .3, 1));
 
