@@ -28,11 +28,6 @@ void Draw() {
 	glutSwapBuffers();
 }
 
-void updateView() {
-	s->SetViewProjection(Vector3(3, 4, 15), Vector3(3, 0, -70), Vector3(0, 1, 0),
-			45.0, RES_WIDTH, RES_HEIGHT, 0.1, 100);
-}
-
 void GetSceneData()
 {
 	// TODO: read initialization data from file, data source, or user input
@@ -42,6 +37,8 @@ void GetSceneData()
 	s->SetAmbient(Vector4(.3, .3, .3, 1));
 	s->AddLight(Vector3(5, 8, 15), Vector4(1, 1, 1, 1));
 	s->AddLight(Vector3(-5, 8, 15), Vector4(1, 1, 1, 1));
+	s->SetViewProjection(Vector3(3, 4, 15), Vector3(3, 0, -70), Vector3(0, 1, 0),
+			45.0, RES_WIDTH, RES_HEIGHT, 0.1, 100);
 
 	RTTriangle *floor1 = new RTTriangle(Vector3(8, 0, 16), Vector3(-8, 0, -16), Vector3(8, 0, -16), Vector3(0, 1, 0));
 	RTTriangle *floor2 = new RTTriangle(Vector3(8, 0, 16), Vector3(-8, 0, -16), Vector3(-8, 0, 16), Vector3(0, 1, 0));
@@ -96,6 +93,83 @@ void GetSceneData()
     s->AddObject(sphere2);
 }
 
+//r - radius
+//d - diameter
+//sp - spacing
+void GetScene2Data(int rows, int columns, float r, float sp) {
+	float d = 2 * r;
+	s->SetRecursionDepth(1);
+	s->SetBackground(Vector4(.4, .6, .93, 1));
+	s->SetAmbient(Vector4(.3, .3, .3, 1));
+
+	// v4	v3	|
+	//			z
+	// v1	v2	+
+	// ---x+++
+	
+	double x = rows * (sp + d);
+	double z = columns * (sp + d);
+	Vector3 v1, v2, v3, v4;
+	v1 = Vector3(-sp, 0, sp);
+	v2 = Vector3(x, 0, sp);
+	v3 = Vector3(x, 0, -z);
+	v4 = Vector3(-sp, 0, -z);
+	
+	Vector3 h = Vector3(0, z, 0);
+	Vector4 l = Vector4(1, 1, 1, 1);
+	s->AddLight(v1 - v3 + h, l);
+	s->AddLight(v2 + v4 + h, l);
+	s->AddLight(v3 + v3 + h, l);
+	s->AddLight(v4 - v2 + h, l);
+	
+	s->SetViewProjection(
+			Vector3((x - sp) / 2, r, 0), 
+			Vector3(x / 2, 0, -z/2), 
+			Vector3(0, 1, 0),
+			45.0, RES_WIDTH, RES_HEIGHT, 0.1, 100);
+
+	Vector3 n = Vector3(0, 1, 0);
+	RTTriangle *floor1 = new RTTriangle(v1, v2, v3, n);
+	RTTriangle *floor2 = new RTTriangle(v1, v3, v4, n);
+	
+	Material *floorMat = new Material();
+    floorMat->ambientStrength = 0.15;
+    floorMat->diffuseStrength = 0.5;
+    //floorMat->setAmbientColor(Vector4(0.2, 1, 0.2, 1));
+    //floorMat->setDiffuseColor(Vector4(0.2, 1, 0.2, 1));
+    //floorMat->setSpecularColor(Vector4(0.2, 1, 0.2, 1));
+    floor1->SetMaterial(floorMat, rows * 2, columns * 2);
+    floor2->SetMaterial(floorMat, rows * 2, columns * 2);
+    //floor.MaxU = 10;
+    //floor.MaxV = 15;
+    s->AddObject(floor1);
+    s->AddObject(floor2);
+
+    Material *mirror = new Material();
+    mirror->ambientStrength = 0.15;
+    mirror->diffuseStrength = 0.25;
+    mirror->specularStrength = 0.6;
+    mirror->exponent = 20;
+    mirror->setAmbientColor(Vector4(.7, .7, .7, .7));
+    mirror->setDiffuseColor(Vector4(1, 1, 1, 1));
+    mirror->setSpecularColor(Vector4(1, 1, 1, 1));
+    mirror->kR = .75;
+    
+    int xI, zI;
+    for(xI = 0; xI < rows; ++xI) {
+    	for(zI = 0; zI < columns; ++zI) {
+    	    RTObject *sphere = new RTSphere(
+    	    		Vector3(
+    	    				xI * (d + sp) + r, 
+    	    				r, 
+    	    				-zI * (d + sp) - r), 
+    	    		r);
+    	    sphere->SetMaterial(mirror);
+    	    s->AddObject(sphere);
+    	}
+    }
+}
+
 void *trace(void *threadID) {
 	Vector4 *vectorData = new Vector4[(int)RES_WIDTH * (int)RES_HEIGHT];
 
@@ -145,27 +219,32 @@ void keyboard(unsigned char key, int x, int y)
             break;
         case 'w':
         	camPos.z -= 0.1;
+            s->SetCameraPosition(camPos);
             break;
         case 's':
         	camPos.z += 0.1;
+            s->SetCameraPosition(camPos);
             break;
         case 'a':
         	camPos.x -= 0.1;
+            s->SetCameraPosition(camPos);
             break;
         case 'd':
         	camPos.x += 0.1;
+            s->SetCameraPosition(camPos);
             break;
         case '[':
-        	s->SetRecursionDepth(d-1);
+        	s->SetRecursionDepth(--d);
+            cout << "DEPTH = " << d << "\n";
             break;
         case ']':
-        	s->SetRecursionDepth(d+1);
+        	s->SetRecursionDepth(++d);
+            cout << "DEPTH = " << d << "\n";
             break;
 
         default:
             break;
     }
-    s->SetCameraPosition(camPos);
     glutPostRedisplay();
 }
 
@@ -184,8 +263,8 @@ int main(int argc, char** argv)
 	//glutKeyboardFunc(keyboard);
 
 	s = new Scene();
-    updateView();
-	GetSceneData();
+	//GetSceneData();
+    GetScene2Data(4, 20, 1.0, 3);
 	pixelData = new float[(int)RES_WIDTH * (int)RES_HEIGHT * 3];
 	pthread_mutex_init(&mutex, NULL);
 
