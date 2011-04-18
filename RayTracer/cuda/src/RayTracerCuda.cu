@@ -361,7 +361,7 @@ float4 calculateSpecular(float4 specularColor, float specularStrength, float exp
 /// <param name="depth">current recursion depth.</param>
 /// <returns></returns>
 __device__
-float4 spawnShadowRay(float3 intersectPoint, int objI, ObjectType t,
+float4 spawnShadowRay(float3 intersectPoint, int objI,
 		Material *m, float4 ambientColor, float4 diffuseColor, float4 specularColor,
 		float3 intersectNormal, float3 viewVector,
 		float4 d_ambientLight, float4 d_backgroundColor,
@@ -396,7 +396,7 @@ float4 spawnShadowRay(float3 intersectPoint, int objI, ObjectType t,
 			for(k = 0; k < d_numSpheres; ++k)
 			{
 				Sphere *s = &d_spheres[k];
-				if (t != T_Sphere || k != objI)
+				if (k != objI)
 				{
 					float curDist = intersects(s, shadowRay);
 					if (curDist > 0 && curDist < dist)
@@ -491,7 +491,7 @@ float4 illuminate(Ray ray, Ray *reflectionRay, float *kR,
         float3 viewVector = -ray.Direction;
         float4 totalLight = make_float4(0,0,0,0);
         totalLight += d_ambientLight * ambientColor * m->ambientStrength;
-        totalLight += spawnShadowRay(intersectPoint, i, type,
+        totalLight += spawnShadowRay(intersectPoint, i,
         		m, ambientColor, diffuseColor, specularColor, 
         		intersectNormal, viewVector,
     			d_ambientLight, d_backgroundColor,

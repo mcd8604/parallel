@@ -47,7 +47,7 @@ const char *sReference[] =
     NULL
 };
 
-const char *sSDKsample = "CUDA 3D Ray Tracer";
+const char *sSDKsample = "CUDA Ray Tracer";
 
 uint width = 640, height = 480;
 uint depth = 1;
@@ -124,7 +124,7 @@ void updateView();
 void GetSceneData()
 {
 	// TODO: read initialization data from file, data source, or user input
-
+	depth = 6;
 	camPos = make_float3(3, 4, 15);
 	camTar = make_float3(3, 0, -70);
 	camUp = make_float3(0, 1, 0);
@@ -160,6 +160,7 @@ void GetSceneData()
 //    floorM.ambientColor = make_float4(0.2, 1, 0.2, 1);
 //    floorM.diffuseColor = make_float4(0.2, 1, 0.2, 1);
 //    floorM.specularColor = make_float4(0.2, 1, 0.2, 1);
+//	floorM.kR = 1;
 	floor1.m = floorM;
 	floor2.m = floorM;
 
@@ -190,17 +191,17 @@ void GetSceneData()
 	sphere2.r = 1;
 	// mirror material
     Material mirror;
-    mirror.ambientStrength = 0.15;
-    mirror.diffuseStrength = 0.25;
-    mirror.specularStrength = 1;
+    mirror.ambientStrength = 0.5;
+    mirror.diffuseStrength = 0.5;
+    mirror.specularStrength = 0.5;
     mirror.exponent = 20;
     mirror.ambientColor = make_float4(.7, .7, .7, .7);
-    mirror.diffuseColor = make_float4(0, 0, 1, 1);
+    mirror.diffuseColor = make_float4(1, 1, 1, 1);
     mirror.specularColor = make_float4(1, 1, 1, 1);
     mirror.kR = .75;
     sphere2.m = mirror;
 
-    mirror.diffuseColor = make_float4(1, 0, 0, 1);
+    mirror.diffuseColor = make_float4(1, 1, 1, 1);
     sphere1.m = mirror;
 
 	numSpheres = 2;
@@ -327,10 +328,10 @@ void computeFPS()
     if (fpsCount == fpsLimit) {
         char fps[256];
         float ifps = 1.f / (cutGetAverageTimerValue(timer) / 1000.f);
-        sprintf(fps, "%sRay Tracer: %3.1f fps", 
-                ((g_CheckRender && g_CheckRender->IsQAReadback()) ? "AutoTest: " : ""), ifps);  
+        //sprintf(fps, "%sRay Tracer: %3.1f fps", 
+        //        ((g_CheckRender && g_CheckRender->IsQAReadback()) ? "AutoTest: " : ""), ifps);  
 
-        glutSetWindowTitle(fps);
+        //glutSetWindowTitle(fps);
         fpsCount = 0; 
         if (g_CheckRender && !g_CheckRender->IsQAReadback()) fpsLimit = (int)MAX(ifps, 1.f);
 
@@ -372,8 +373,8 @@ void render()
         cutilSafeCall(cudaMalloc((void **)&d_rayTable, width * height * sizeof(Ray)));
         cutilSafeCall(cudaMemcpy(d_rayTable, rayTable, width * height * sizeof(Ray), cudaMemcpyHostToDevice));
                 
-        cutilCheckError(cutStartTimer(timer));
-        clock_t s = clock();  
+//        cutilCheckError(cutStartTimer(timer));
+//        clock_t s = clock();  
         
 		render_kernel2(gridSize, blockSize, d_output, d_rayTable,
 				width, height, depth,
@@ -382,14 +383,14 @@ void render()
 				numTriangles, triangles,
 				numSpheres, spheres);
 		
-        cutilCheckError(cutStopTimer(timer));
-        clock_t e = clock();  
-
-        // Get elapsed time and throughput, then log to sample and master logs
-        double kernelTimeCUTIL = cutGetTimerValue(timer);
-        shrLogEx(LOGBOTH | MASTER, 0, "CUTIL Kernel Time = %.5f ms\n", kernelTimeCUTIL); 
-        double kernelTime = double(e - s) / CLOCKS_PER_SEC;
-        shrLogEx(LOGBOTH | MASTER, 0, "Kernel Time = %.5f ms\n", kernelTime); 
+//        cutilCheckError(cutStopTimer(timer));
+//        clock_t e = clock();  
+//
+//        // Get elapsed time and throughput, then log to sample and master logs
+//        double kernelTimeCUTIL = cutGetTimerValue(timer);
+//        shrLogEx(LOGBOTH | MASTER, 0, "CUTIL Kernel Time = %.5f ms\n", kernelTimeCUTIL); 
+//        double kernelTime = double(e - s) / CLOCKS_PER_SEC;
+//        shrLogEx(LOGBOTH | MASTER, 0, "Kernel Time = %.5f ms\n", kernelTime); 
         
 	    cutilSafeCall(cudaFree(d_rayTable));
 //    }
@@ -482,6 +483,18 @@ void keyboard(unsigned char key, int x, int y)
         case 'd':
         	camPos.x += 0.1;
             updateView();
+            break;
+        case 'i':
+        	spheres[0].p.z -= .01;
+            break;
+        case 'k':
+        	spheres[0].p.z += .01;
+            break;
+        case 'j':
+        	spheres[0].p.x -= 0.01;
+            break;
+        case 'l':
+        	spheres[0].p.x += 0.01;
             break;
         case 'q':
         	unprojectGPU = !unprojectGPU;
@@ -869,8 +882,8 @@ main( int argc, char** argv)
 		glutMotionFunc(motion);
 		glutReshapeFunc(reshape);
 		glutIdleFunc(idle);
-		//GetSceneData();
-	    GetScene2Data(4, 20, 1.0, 3);
+		GetSceneData();
+	    //GetScene2Data(4, 20, 1.0, 3);
 		updateView();
 
         initPixelBuffer();
