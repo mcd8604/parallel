@@ -5,8 +5,8 @@
 #include <stdio.h>
 
 // Screen size
-#define RES_WIDTH 800.0
-#define RES_HEIGHT 600.0
+#define RES_WIDTH 640.0
+#define RES_HEIGHT 480.0
 
 using namespace std;
 using namespace RayTracer;
@@ -133,7 +133,7 @@ void GetScene2Data(int rows, int columns, float r, float sp) {
 	RTTriangle *floor2 = new RTTriangle(v1, v3, v4, n);
 	
 	Material *floorMat = new Material();
-    floorMat->ambientStrength = 0.15;
+    floorMat->ambientStrength = 0.25;
     floorMat->diffuseStrength = 0.5;
     //floorMat->setAmbientColor(Vector4(0.2, 1, 0.2, 1));
     //floorMat->setDiffuseColor(Vector4(0.2, 1, 0.2, 1));
@@ -146,9 +146,9 @@ void GetScene2Data(int rows, int columns, float r, float sp) {
     s->AddObject(floor2);
 
     Material *mirror = new Material();
-    mirror->ambientStrength = 0.15;
-    mirror->diffuseStrength = 0.25;
-    mirror->specularStrength = 0.6;
+    mirror->ambientStrength = 0.5;
+    mirror->diffuseStrength = 0.5;
+    mirror->specularStrength = 0.5;
     mirror->exponent = 20;
     mirror->setAmbientColor(Vector4(.7, .7, .7, .7));
     mirror->setDiffuseColor(Vector4(1, 1, 1, 1));
