@@ -24,6 +24,8 @@
 #include <driver_functions.h>
 #include <cuda_gl_interop.h>
 
+#include <time.h>
+
 #include "RayTracer.h"
 
 typedef unsigned int uint;
@@ -49,7 +51,7 @@ const char *sSDKsample = "CUDA 3D Ray Tracer";
 
 uint width = 640, height = 480;
 uint depth = 1;
-dim3 blockSize(12, 12);
+dim3 blockSize(16, 12);
 dim3 gridSize;
 
 float invViewMatrix[12];
@@ -130,8 +132,8 @@ void GetSceneData()
 	near = 0.1;
 	far = 1000;
 
-	backgroundColor = make_float4(.5, .7, .9, 1);
-	ambientLight = make_float4(.6, .6, .6, 1);
+	backgroundColor = make_float4(.4, .6, .93, 1);
+	ambientLight = make_float4(.3, .3, .3, 1);
 
 	numLights = 2;
 	lights = (Light *)malloc(numLights * sizeof(Light));
@@ -207,6 +209,103 @@ void GetSceneData()
 	spheres[1] = sphere2;
 }
 
+//r - radius
+//d - diameter
+//sp - spacing
+void GetScene2Data(int rows, int columns, float r, float sp) {
+	float d = 2 * r;
+	depth = 3;
+	backgroundColor = make_float4(.4, .6, .93, 1);
+	ambientLight = make_float4(.3, .3, .3, 1);
+
+	// v4	v3	|
+	//			z
+	// v1	v2	+
+	// ---x+++
+	
+	double x = rows * (sp + d);
+	double z = columns * (sp + d);
+	float3 v1, v2, v3, v4;
+	v1 = make_float3(-sp, 0, sp);
+	v2 = make_float3(x, 0, sp);
+	v3 = make_float3(x, 0, -z);
+	v4 = make_float3(-sp, 0, -z);
+		
+	numLights = 4;
+	lights = (Light *)malloc(numLights * sizeof(Light));
+
+	float3 h = make_float3(0, z, 0);
+	lights[0].Position = v1 - v3 + h;
+	lights[1].Position = v2 + v4 + h;
+	lights[2].Position = v3 + v3 + h;
+	lights[3].Position = v4 - v2 + h;
+
+	float4 l = make_float4(1, 1, 1, 1);
+	lights[0].Color = l;	
+	lights[1].Color = l;
+	lights[2].Color = l;
+	lights[3].Color = l;	
+	
+	camPos = make_float3((x - sp) / 2, r, 0);
+	camTar = make_float3(x / 2, 0, -z/2); 
+	camUp = make_float3(0, 1, 0);
+	fovy = 45.0;
+	near = 0.1;
+	far = 1000;
+
+	float3 n = make_float3(0, 1, 0);
+	
+	Triangle floor1;
+	floor1.v1 = v1;
+	floor1.v2 = v2;
+	floor1.v3 = v3;
+	floor1.n = n;
+	
+	Triangle floor2;
+	floor2.v1 = v1;
+	floor2.v2 = v3;
+	floor2.v3 = v4;
+	floor2.n = n;
+	
+	Material floorMat;
+    floorMat.ambientStrength = 0.25;
+    floorMat.diffuseStrength = 0.5;
+    floor1.m = floorMat;
+    floor2.m = floorMat;
+    
+	numTriangles = 2;
+	triangles = (Triangle *)malloc(numTriangles * sizeof(Triangle));
+	triangles[0] = floor1;
+	triangles[1] = floor2;
+
+    Material mirror;
+    mirror.ambientStrength = 0.5;
+    mirror.diffuseStrength = 0.5;
+    mirror.specularStrength = 0.5;
+    mirror.exponent = 20;
+    mirror.ambientColor = make_float4(.7, .7, .7, .7);
+    mirror.diffuseColor = make_float4(1, 1, 1, 1);
+    mirror.specularColor = make_float4(1, 1, 1, 1);
+    mirror.kR = .75;
+
+	numSpheres = rows * columns;
+	spheres = (Sphere *)malloc(numSpheres * sizeof(Sphere));
+	
+    int xI, zI;
+    for(xI = 0; xI < rows; ++xI) {
+    	for(zI = 0; zI < columns; ++zI) {
+    	    Sphere sphere;
+			sphere.r = r;
+			sphere.p = make_float3(
+					xI * (d + sp) + r, 
+					r, 
+					-zI * (d + sp) - r);
+    	    sphere.m = mirror;
+    		spheres[xI * columns + zI] = sphere;
+    	}
+    }
+}
+
 void AutoQATest()
 {
     if (g_CheckRender && g_CheckRender->IsQAReadback()) {
@@ -272,8 +371,9 @@ void render()
         Ray *d_rayTable;
         cutilSafeCall(cudaMalloc((void **)&d_rayTable, width * height * sizeof(Ray)));
         cutilSafeCall(cudaMemcpy(d_rayTable, rayTable, width * height * sizeof(Ray), cudaMemcpyHostToDevice));
-        
-        cutilCheckError(cutStartTimer(timer));  
+                
+        cutilCheckError(cutStartTimer(timer));
+        clock_t s = clock();  
         
 		render_kernel2(gridSize, blockSize, d_output, d_rayTable,
 				width, height, depth,
@@ -282,10 +382,13 @@ void render()
 				numTriangles, triangles,
 				numSpheres, spheres);
 		
-        cutilCheckError(cutStopTimer(timer));  
+        cutilCheckError(cutStopTimer(timer));
+        clock_t e = clock();  
 
         // Get elapsed time and throughput, then log to sample and master logs
-        double kernelTime = cutGetTimerValue(timer);
+        double kernelTimeCUTIL = cutGetTimerValue(timer);
+        shrLogEx(LOGBOTH | MASTER, 0, "CUTIL Kernel Time = %.5f ms\n", kernelTimeCUTIL); 
+        double kernelTime = double(e - s) / CLOCKS_PER_SEC;
         shrLogEx(LOGBOTH | MASTER, 0, "Kernel Time = %.5f ms\n", kernelTime); 
         
 	    cutilSafeCall(cudaFree(d_rayTable));
@@ -366,30 +469,35 @@ void keyboard(unsigned char key, int x, int y)
             break;
         case 'w':
         	camPos.z -= 1;
+            updateView();
             break;
         case 's':
         	camPos.z += 1;
+            updateView();
             break;
         case 'a':
         	camPos.x -= 0.1;
+            updateView();
             break;
         case 'd':
         	camPos.x += 0.1;
+            updateView();
             break;
         case 'q':
         	unprojectGPU = !unprojectGPU;
         	break;
         case '[':
         	--depth;
+        	shrLog("DEPTH = %i\n", depth);
         	break;
         case ']':
         	++depth;
+        	shrLog("DEPTH = %i\n", depth);
         	break;
         default:
             break;
     }
     //shrLog("spheres[0].p.z = %.2f, \n", spheres[0].p.z);
-    updateView();
     glutPostRedisplay();
 }
 
@@ -761,7 +869,8 @@ main( int argc, char** argv)
 		glutMotionFunc(motion);
 		glutReshapeFunc(reshape);
 		glutIdleFunc(idle);
-		GetSceneData();
+		//GetSceneData();
+	    GetScene2Data(4, 20, 1.0, 3);
 		updateView();
 
         initPixelBuffer();

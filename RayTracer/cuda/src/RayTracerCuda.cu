@@ -342,7 +342,7 @@ float4 calculateSpecular(float4 specularColor, float specularStrength, float exp
 		Light l, float3 normal, float3 lightVector, float3 viewVector) {
 	float3 reflectedVector = Reflect(lightVector, normal);
 	float dot = Dot(reflectedVector, viewVector);
-	if (dot >= 0)
+	if (dot > 0)
 	    return make_float4(0, 0, 0, 0);
 	float4 specularLight = l.Color *
 		fabs(Dot(lightVector, normal) * pow(dot, exp)) *
@@ -361,7 +361,7 @@ float4 calculateSpecular(float4 specularColor, float specularStrength, float exp
 /// <param name="depth">current recursion depth.</param>
 /// <returns></returns>
 __device__
-float4 spawnShadowRay(float3 intersectPoint, int objI, 
+float4 spawnShadowRay(float3 intersectPoint, int objI, ObjectType t,
 		Material *m, float4 ambientColor, float4 diffuseColor, float4 specularColor,
 		float3 intersectNormal, float3 viewVector,
 		float4 d_ambientLight, float4 d_backgroundColor,
@@ -396,7 +396,7 @@ float4 spawnShadowRay(float3 intersectPoint, int objI,
 			for(k = 0; k < d_numSpheres; ++k)
 			{
 				Sphere *s = &d_spheres[k];
-				if (k != objI)
+				if (t != T_Sphere || k != objI)
 				{
 					float curDist = intersects(s, shadowRay);
 					if (curDist > 0 && curDist < dist)
@@ -409,10 +409,12 @@ float4 spawnShadowRay(float3 intersectPoint, int objI,
 			}
 
 			if(!shadowed) {
-				diffuseTotal += calculateDiffuse(diffuseColor, m->diffuseStrength, 
-						light, intersectNormal, lightVector);
-				specularTotal += calculateSpecular(specularColor, m->specularStrength, m->exponent,
-						light, intersectNormal, lightVector, viewVector);
+				if(m->diffuseStrength > 0)
+					diffuseTotal += calculateDiffuse(diffuseColor, m->diffuseStrength, 
+							light, intersectNormal, lightVector);
+				if(m->specularStrength > 0)
+					specularTotal += calculateSpecular(specularColor, m->specularStrength, m->exponent, 
+							light, intersectNormal, lightVector, viewVector);
 			}
 		}
 	}
@@ -461,8 +463,8 @@ float4 illuminate(Ray ray, Ray *reflectionRay, float *kR,
 			max.y = fmax(fmax(t->v1.y, t->v2.y), t->v3.y);
 			max.z = fmax(fmax(t->v1.z, t->v2.z), t->v3.z);
 			
-			float u = (intersectPoint.x - min.x) / (max.x - min.x) * 10;
-			float v = (intersectPoint.z - min.z) / (max.z - min.z) * 15;
+			float u = (intersectPoint.x - min.x) / (max.x - min.x) * 8;
+			float v = (intersectPoint.z - min.z) / (max.z - min.z) * 40;
 			float4 red = make_float4(1, 0, 0, 1);
 			float4 yellow = make_float4(1, 1, 0, 1);
 			float4 c;
@@ -489,7 +491,7 @@ float4 illuminate(Ray ray, Ray *reflectionRay, float *kR,
         float3 viewVector = -ray.Direction;
         float4 totalLight = make_float4(0,0,0,0);
         totalLight += d_ambientLight * ambientColor * m->ambientStrength;
-        totalLight += spawnShadowRay(intersectPoint, i, 
+        totalLight += spawnShadowRay(intersectPoint, i, type,
         		m, ambientColor, diffuseColor, specularColor, 
         		intersectNormal, viewVector,
     			d_ambientLight, d_backgroundColor,
@@ -606,21 +608,19 @@ d_render2(uint *d_output, Ray *d_rayTable,
 //			numTriangles, triangles,
 //			numSpheres, spheres));
     
-    Ray next;
-    float kR;
-    float4 sum = illuminate(ray, &next, &kR,
-		ambientLight, backgroundColor,
-		numLights, lights,
-		numTriangles, triangles,
-		numSpheres, spheres);
-    int count = 1;
+    float4 sum = make_float4(0, 0, 0, 0);
+    Ray nextRay;
+    float kR = 1;
+    float nextkR = 0;
+    int count = 0;
     while(kR > 0 && count < depth) {
-        ray = next;
-    	sum += kR * illuminate(ray, &next,  &kR,
+    	sum += kR * illuminate(ray, &nextRay, &nextkR,
     			ambientLight, backgroundColor,
     			numLights, lights,
     			numTriangles, triangles,
     			numSpheres, spheres);
+        ray = nextRay;
+        kR = nextkR;
     	count++;
     }
     
