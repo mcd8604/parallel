@@ -8,6 +8,7 @@
 #include "Scene.h"
 #include <iostream>
 #include <GL/glut.h>
+#include <pthread.h>
 
 #define TRANSMIT_SHADOW 0
 
@@ -122,15 +123,19 @@ void Scene::AddObject(RTObject *rt) {
 	worldObjects.push_back(rt);
 }
 
-void Scene::trace(Vector4 *colorData) {
+void Scene::trace(float *colorData, int id, int t) {
     //colorData = new Vector4[width * height];
 
-    for (int y = 0; y < height; ++y)
+    for (int y = id; y < height; y+=t)
     {
         for (int x = 0; x < width; ++x)
         {
             int i= (y * width) + x;
-            colorData[i] = Illuminate(rayTable[i], 0);
+            Vector4 c = Illuminate(rayTable[i], 0);
+            colorData[i * 4] = c.x;
+            colorData[i * 4 + 1] = c.y;
+            colorData[i * 4 + 2] = c.z;
+            colorData[i * 4 + 3] = c.w;
         }
     }
     //if(trOp != TROp.None)

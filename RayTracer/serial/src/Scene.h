@@ -91,7 +91,7 @@ public:
 	void SetBackground(Vector4 color);
 	void AddLight(Vector3 pos, Vector4 clr);
 	void AddObject(RTObject *rt);
-	void trace(Vector4 *colorData);
+	void trace(float *colorData, int id, int t);
 };
 
 }

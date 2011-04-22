@@ -12,19 +12,26 @@ using namespace std;
 using namespace RayTracer;
 
 float *pixelData;
+//Vector4 *vectorData;
 Scene *s;
-clock_t start,end;
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+#define T 1 
+pthread_t threads[T];
+
+//pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t count_mutex;
+pthread_cond_t count_threshold_cv;
+double t = 0;
+int count = 0;
 
 // Draws the graphics
 void Draw() {
 	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-	pthread_mutex_lock(&mutex);
-	glDrawPixels(RES_WIDTH, RES_HEIGHT, GL_RGB, GL_FLOAT, pixelData);
+	//pthread_mutex_lock(&mutex);
+	glDrawPixels(RES_WIDTH, RES_HEIGHT, GL_RGBA, GL_FLOAT, pixelData);
 	//GLenum err = glGetError();
 	//if(err != 0) cout << err << "\n";
-	pthread_mutex_unlock(&mutex);
+	//pthread_mutex_unlock(&mutex);
 	glutSwapBuffers();
 }
 
@@ -67,12 +74,12 @@ void GetSceneData()
 //    glass->kR = .01;
 //    glass->kT = .99;
 //    glass->n = .99;
-	glass->ambientStrength = 0.15;
-	glass->diffuseStrength = 0.25;
-	glass->specularStrength = 1;
+	glass->ambientStrength = 0.5;
+	glass->diffuseStrength = 0.5;
+	glass->specularStrength = 0.5;
 	glass->exponent = 20;
 	glass->setAmbientColor(Vector4(.7, .7, .7, .7));
-	glass->setDiffuseColor(Vector4(1, 0, 0, 1));
+	glass->setDiffuseColor(Vector4(1, 1, 1, 1));
 	glass->setSpecularColor(Vector4(1, 1, 1, 1));
 	glass->kR = .75;
 
@@ -81,12 +88,12 @@ void GetSceneData()
 
     RTSphere *sphere2 = new RTSphere(Vector3(1.5, 3, 9), 1);
     Material *mirror = new Material();
-    mirror->ambientStrength = 0.15;
-    mirror->diffuseStrength = 0.25;
-    mirror->specularStrength = 1;
+    mirror->ambientStrength = 0.5;
+    mirror->diffuseStrength = 0.5;
+    mirror->specularStrength = 0.5;
     mirror->exponent = 20;
     mirror->setAmbientColor(Vector4(.7, .7, .7, .7));
-    mirror->setDiffuseColor(Vector4(0, 0, 1, 1));
+    mirror->setDiffuseColor(Vector4(1, 1, 1, 1));
     mirror->setSpecularColor(Vector4(1, 1, 1, 1));
     mirror->kR = .75;
     sphere2->SetMaterial(mirror);
@@ -171,34 +178,48 @@ void GetScene2Data(int rows, int columns, float r, float sp) {
 }
 
 void *trace(void *threadID) {
-	Vector4 *vectorData = new Vector4[(int)RES_WIDTH * (int)RES_HEIGHT];
-
+	clock_t start,end;
+	int id = (int)threadID;
+	cout << "THREADID = " << id << "\n";
 	while(true) {
 		// perform the ray tracing
 		start = clock();
-		s->trace(vectorData);
+		s->trace(pixelData, id, T);
 		end = clock();
 		double dif = double(end - start) / CLOCKS_PER_SEC;
 		//cout << dif << "\n";
-		printf("%.5f\n", dif);
-		pthread_mutex_lock(&mutex);
-		int i = 0, p = 0;
-		for(;i < RES_WIDTH * RES_HEIGHT; ++i)
-		{
-			Vector4 v = vectorData[i];
-			pixelData[p] = (float)v.x;
-			pixelData[p + 1] = (float)v.y;
-			pixelData[p + 2] = (float)v.z;
-			//pixelData[p + 3] = (float)v.w;
-			p+=3;
+		
+		pthread_mutex_lock(&count_mutex);
+		
+		++count;
+		t += dif;
+		if(count == T) {
+			printf("ID(%i): %.5f\n", id, t);
+			count = 0;
+			t = 0;
+			pthread_cond_signal(&count_threshold_cv);
+		} else {
+			pthread_cond_wait(&count_threshold_cv, &count_mutex);
 		}
-		pthread_mutex_unlock(&mutex);
-		glutPostRedisplay();
+		
+		pthread_mutex_unlock(&count_mutex);
+		
+		//pthread_mutex_lock(&mutex);
+//		int i;
+//		int p = id;
+//		for(i = id; i < RES_WIDTH * RES_HEIGHT; i += T)
+//		{
+//			Vector4 v = vectorData[i];
+//			pixelData[p] = (float)v.x;
+//			pixelData[p + 1] = (float)v.y;
+//			pixelData[p + 2] = (float)v.z;
+//			//pixelData[p + 3] = (float)v.w;
+//			p += 3 * T;
+//		}
+		//pthread_mutex_unlock(&mutex);
+		//glutPostRedisplay();
 		//cout << "Update\n";
 	}
-
-	delete s;
-	delete vectorData;
 
 	pthread_exit(NULL);
 
@@ -253,7 +274,7 @@ int main(int argc, char** argv)
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
 	glutInitWindowSize(RES_WIDTH,RES_HEIGHT);
-	glutCreateWindow("Ray Tracer Test GL");
+	glutCreateWindow("Serial CPU Ray Tracer");
     glViewport(0, 0, RES_WIDTH,RES_HEIGHT);
 
 	glutKeyboardFunc(keyboard);
@@ -263,18 +284,25 @@ int main(int argc, char** argv)
 	//glutKeyboardFunc(keyboard);
 
 	s = new Scene();
-	//GetSceneData();
-    GetScene2Data(4, 20, 1.0, 3);
-	pixelData = new float[(int)RES_WIDTH * (int)RES_HEIGHT * 3];
-	pthread_mutex_init(&mutex, NULL);
+	GetSceneData();
+    //GetScene2Data(4, 20, 1.0, 3);
+	pixelData = new float[(int)RES_WIDTH * (int)RES_HEIGHT * 4];
+	//vectorData = new Vector4[(int)RES_WIDTH * (int)RES_HEIGHT];
+	//pthread_mutex_init(&mutex, NULL);
+	pthread_mutex_init(&count_mutex, NULL);
+	pthread_cond_init (&count_threshold_cv, NULL);
 
-	// run the raytracer on a seperate thread
-	pthread_t rtThread;
-	pthread_create(&rtThread, NULL, trace, NULL);
+	// run the raytracer on multiple seperate threads
 
-	glutMainLoop();
+	int i;
+	for(i = 0; i < T; ++i)
+		pthread_create(&threads[i], NULL, trace, (void *)i);
+
+	pthread_join(threads[0], NULL);
+	//glutMainLoop();
 
 	delete pixelData;
-
+	//delete vectorData;
+	
 	return 0;
 }
