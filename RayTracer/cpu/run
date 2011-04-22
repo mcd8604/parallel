@@ -1,0 +1,2 @@
+#!/bin/bash
+vglrun -np 4 -s -c proxy src/RayTracerSerial
