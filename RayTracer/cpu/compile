@@ -1,2 +1,0 @@
-#!/bin/bash
-g++ -p -o RayTracer src/RayTracerSerial.cpp src/RTObject.cpp src/RTTriangle.cpp src/RTSphere.cpp src/Scene.cpp src/Material.cpp -lGLU -lglut -lpthread
