@@ -201,7 +201,7 @@ void *trace(void *threadID) {
 		if(dwThreadIdArray[id] == tid)
 			break;
 #else
-	id = int(*threadID);
+	id = int(threadID);
 #endif
 
 	cout << "THREADID = " << id << "\n";
