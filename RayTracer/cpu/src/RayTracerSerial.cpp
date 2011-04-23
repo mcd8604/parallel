@@ -1,8 +1,14 @@
 #include "RayTracer.h"
 #include <iostream>
 #include <GL/glut.h>
-#include <pthread.h>
 #include <stdio.h>
+#include <time.h>
+
+#ifdef _WIN32
+#include <Windows.h>
+#else
+#include <pthread.h>
+#endif
 
 // Screen size
 #define RES_WIDTH 640.0
@@ -15,23 +21,26 @@ float *pixelData;
 //Vector4 *vectorData;
 Scene *s;
 
-#define T 1 
-pthread_t threads[T];
+#define MAX_THREADS 4 
 
-//pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+#ifdef _WIN32
+DWORD   dwThreadIdArray[MAX_THREADS];
+HANDLE  hThreadArray[MAX_THREADS]; 
+#else
+pthread_t threads[MAX_THREADS];
 pthread_mutex_t count_mutex;
 pthread_cond_t count_threshold_cv;
+#endif
+
 double t = 0;
 int count = 0;
 
 // Draws the graphics
 void Draw() {
 	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-	//pthread_mutex_lock(&mutex);
 	glDrawPixels(RES_WIDTH, RES_HEIGHT, GL_RGBA, GL_FLOAT, pixelData);
 	//GLenum err = glGetError();
 	//if(err != 0) cout << err << "\n";
-	//pthread_mutex_unlock(&mutex);
 	glutSwapBuffers();
 }
 
@@ -177,51 +186,62 @@ void GetScene2Data(int rows, int columns, float r, float sp) {
     }
 }
 
+#ifdef _WIN32
+DWORD WINAPI trace( LPVOID lpParam ) {
+#else
 void *trace(void *threadID) {
+#endif
+
 	clock_t start,end;
-	int id = (int)threadID;
+	int id;
+
+#ifdef _WIN32
+	DWORD tid = GetCurrentThreadId();
+	for(id = 0; id < MAX_THREADS; ++id)
+		if(dwThreadIdArray[id] == tid)
+			break;
+#else
+	id = int(*threadID);
+#endif
+
 	cout << "THREADID = " << id << "\n";
 	while(true) {
 		// perform the ray tracing
 		start = clock();
-		s->trace(pixelData, id, T);
+		s->trace(pixelData, id, MAX_THREADS);
 		end = clock();
 		double dif = double(end - start) / CLOCKS_PER_SEC;
-		//cout << dif << "\n";
-		
-		pthread_mutex_lock(&count_mutex);
-		
 		++count;
 		t += dif;
-		if(count == T) {
-			printf("ID(%i): %.5f\n", id, t);
-			count = 0;
-			t = 0;
-			pthread_cond_signal(&count_threshold_cv);
-		} else {
-			pthread_cond_wait(&count_threshold_cv, &count_mutex);
+		if(id == 0) {
+			printf("Avg Thread time: %.5f\n", t / count);
+			printf("Avg Frame time: %.5f\n", t / count * MAX_THREADS);
 		}
 		
-		pthread_mutex_unlock(&count_mutex);
-		
-		//pthread_mutex_lock(&mutex);
-//		int i;
-//		int p = id;
-//		for(i = id; i < RES_WIDTH * RES_HEIGHT; i += T)
-//		{
-//			Vector4 v = vectorData[i];
-//			pixelData[p] = (float)v.x;
-//			pixelData[p + 1] = (float)v.y;
-//			pixelData[p + 2] = (float)v.z;
-//			//pixelData[p + 3] = (float)v.w;
-//			p += 3 * T;
-//		}
-		//pthread_mutex_unlock(&mutex);
-		//glutPostRedisplay();
-		//cout << "Update\n";
-	}
+#ifndef _WIN32
+		// Barrier code
 
+		//pthread_mutex_lock(&count_mutex);
+		
+		//++count;
+		//t += dif;
+		//if(count == T) {
+		//	printf("ID(%i): %.5f\n", id, t);
+		//	count = 0;
+		//	t = 0;
+		//	pthread_cond_signal(&count_threshold_cv);
+		//} else {
+		//	pthread_cond_wait(&count_threshold_cv, &count_mutex);
+		//}
+		
+		//pthread_mutex_unlock(&count_mutex);
+		//glutPostRedisplay();
+#endif
+	}
+	
+#ifndef _WIN32
 	pthread_exit(NULL);
+#endif
 
 	return 0;
 }
@@ -287,22 +307,36 @@ int main(int argc, char** argv)
 	GetSceneData();
     //GetScene2Data(4, 20, 1.0, 3);
 	pixelData = new float[(int)RES_WIDTH * (int)RES_HEIGHT * 4];
-	//vectorData = new Vector4[(int)RES_WIDTH * (int)RES_HEIGHT];
-	//pthread_mutex_init(&mutex, NULL);
+#ifndef _WIN32
 	pthread_mutex_init(&count_mutex, NULL);
 	pthread_cond_init (&count_threshold_cv, NULL);
-
+#endif
 	// run the raytracer on multiple seperate threads
 
 	int i;
-	for(i = 0; i < T; ++i)
+	for(i = 0; i < MAX_THREADS; ++i)
+#ifdef _WIN32
+		hThreadArray[i] = CreateThread( 
+            NULL,                   // default security attributes
+            0,                      // use default stack size  
+            trace,					// thread function name
+            NULL,					// argument to thread function 
+            0,                      // use default creation flags 
+            &dwThreadIdArray[i]);   // returns the thread identifier 
+#else
 		pthread_create(&threads[i], NULL, trace, (void *)i);
+	//pthread_join(threads[0], NULL);
+#endif
 
-	pthread_join(threads[0], NULL);
-	//glutMainLoop();
+	glutMainLoop();
+	
+#ifdef _WIN32
+	for(i = 0; i < MAX_THREADS; ++i) {
+        CloseHandle(hThreadArray[i]);
+    }
+#endif
 
 	delete pixelData;
-	//delete vectorData;
 	
 	return 0;
 }

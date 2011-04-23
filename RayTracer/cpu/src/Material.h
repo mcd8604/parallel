@@ -22,13 +22,13 @@ private:
 	Vector4 specularColor;
 
 public:
-	float kR; // Reflectivity coeffecient.
-	float kT; // Transparency coeffecient.
-	float n; // Index of refraction
-	float ambientStrength;
-	float diffuseStrength;
-	float specularStrength;
-	float exponent;
+	double kR; // Reflectivity coeffecient.
+	double kT; // Transparency coeffecient.
+	double n; // Index of refraction
+	double ambientStrength;
+	double diffuseStrength;
+	double specularStrength;
+	double exponent;
 
 	virtual Vector4 getAmbientColor();
 	virtual void setAmbientColor(Vector4 color);

@@ -8,7 +8,6 @@
 #include "Scene.h"
 #include <iostream>
 #include <GL/glut.h>
-#include <pthread.h>
 
 #define TRANSMIT_SHADOW 0
 
@@ -32,6 +31,9 @@ int Scene::GetRecursionDepth() {
 
 void Scene::updateViewProj() {
 	if(width > 0 && height > 0) {
+		//rayTable.reserve(width * height);
+		rayTable.resize(width * height);
+
 		// use OpenGL to unproject
 		GLdouble model[16];
 		GLdouble proj[16];
@@ -100,7 +102,6 @@ void Scene::SetViewProjection(Vector3 pos, Vector3 tar, Vector3 up,
 
 	//if(!rayTable)
 		//rayTable = new Ray[width * height];
-	rayTable.reserve(width * height);
 	updateViewProj();
 }
 
