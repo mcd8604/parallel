@@ -28,8 +28,8 @@ struct Vector3 {
 	Vector3 Reflect(Vector3 n) { Vector3 v(x, y, z); return v - n * v.Dot(n) * 2; }
 	Vector3 Normalize() { double xx, yy, zz, d;	xx = x * x; yy = y * y; zz = z * z; d = sqrt(xx + yy + zz); return Vector3( x / d, y / d, z / d); }
 	double Dot(Vector3 v) { return x * v.x + y * v.y + z * v.z; }
-	double Distance(Vector3 v) { int dX, dY, dZ; dX = v.x - x; dY = v.y -y; dZ = v.z - z; return sqrt(dX * dX + dY * dY + dZ * dZ); }
-	double DistanceSq(Vector3 v) { int dX, dY, dZ; dX = v.x - x; dY = v.y -y; dZ = v.z - z; return dX * dX + dY * dY + dZ * dZ; }
+	double Distance(Vector3 v) { double dX, dY, dZ; dX = v.x - x; dY = v.y -y; dZ = v.z - z; return sqrt(dX * dX + dY * dY + dZ * dZ); }
+	double DistanceSq(Vector3 v) { double dX, dY, dZ; dX = v.x - x; dY = v.y -y; dZ = v.z - z; return dX * dX + dY * dY + dZ * dZ; }
 };
 
 struct Vector4 {
@@ -49,8 +49,8 @@ struct Vector4 {
 	Vector4 Reflect(Vector4 n) { Vector4 v(x, y, z, w); return v - n * v.Dot(n) * 2; }
 	Vector4 Normalize() { double xx, yy, zz, ww, d; xx = x * x;	yy = y * y;	zz = z * z; ww = w * w; sqrt(d = xx + yy + zz + ww); return Vector4(x / d, y / d, z / d, w / d); }
 	double Dot(Vector4 v) { return x * v.x + y * v.y + z * v.z + w * v.w; }
-	double Distance(Vector4 v) { int dX, dY, dZ, dW; dX = v.x - x; dY = v.y -y; dZ = v.z - z; dW = v.w - w; return sqrt(dX * dX + dY * dY + dZ * dZ + dW * dW); }
-	double DistanceSq(Vector4 v) { int dX, dY, dZ, dW; dX = v.x - x; dY = v.y -y; dZ = v.z - z; dW = v.w - w; return dX * dX + dY * dY + dZ * dZ + dW * dW; }
+	double Distance(Vector4 v) { double dX, dY, dZ, dW; dX = v.x - x; dY = v.y -y; dZ = v.z - z; dW = v.w - w; return sqrt(dX * dX + dY * dY + dZ * dZ + dW * dW); }
+	double DistanceSq(Vector4 v) { double dX, dY, dZ, dW; dX = v.x - x; dY = v.y -y; dZ = v.z - z; dW = v.w - w; return dX * dX + dY * dY + dZ * dZ + dW * dW; }
 };
 
 struct Ray {
