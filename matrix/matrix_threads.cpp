@@ -25,8 +25,8 @@ typedef struct ThreadData {
 };
 
 void generateMatrix(Matrix *m, int w, int h) {
-	if(m->data)
-		free(m->data);
+	//if(m->data)
+	//	free(m->data);
 	m->w = w;
 	m->h = h;
 	m->data = (float *)malloc(sizeof(float) * w * h);	
@@ -61,10 +61,12 @@ void *matrixMult(void *threadData)
 	Matrix *m3 = d.m3;
 		
 	int x, y, i;
-	for(y = d.i; y < m3->h; y+=d.p)
-		for(x = 0; x < m3->w; x++)
+	for(y = d.i; y < m2->w; y+=d.p)
+		for(x = 0; x < m1->h; x++)
 			for(i = 0; i < m1->w; i++)
-				m3->data[y * m3->h + x] += m1->data[m1->h * y + i] * m2->data[x * m2-> w + i];
+				m3->data[y * m3->h + x] +=
+				m1->data[x * m1->h + i] * 
+				m2->data[i * m2->w + y];
 	return 0;
 }
 
@@ -74,12 +76,16 @@ int main(int argc, char **argv)
 	generateMatrix(&m1, 3, 5);
 	
 	Matrix m2;
-	generateMatrix(&m2, 6, 3);
+	generateMatrix(&m2, 16, 3);
 
 	Matrix m3;
 	m3.w = m1.h;
 	m3.h = m2.w;
 	m3.data = (float *)malloc(sizeof(float) * m3.w * m3.h);
+	int x, y;
+    for(y = 0; y < m3.h; y++)
+    	for(x = 0; x < m3.w; x++)
+			m3.data[y * m3.w + x] = 0;
 
 	printMatrix(&m1);
 	printMatrix(&m2);

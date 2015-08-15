@@ -3,12 +3,10 @@
 #include <time.h>
 #include <vector>
 
-#undef SEEK_SET
-#undef SEEK_END
-#undef SEEK_CUR
 #include <mpi.h>
 
 #define MY_RAND_MAX 9
+#define ROOT_RANK 0
 
 using namespace std;
 
@@ -91,29 +89,49 @@ void testSerial(struct matrix2D *m1, struct matrix2D *m2)
     	cout << "Invalid operands\n";
 }
 
-void testParallel()
+void multParallel_SendReceive_Root(struct matrix2D *m1, struct matrix2D *m2)
 {
+	if(m1->w != m2->h)
+	int i, y, r;
+	for(y = 0; y <
+}
+
+void multParallel_SendReceive(int r, int p)
+{
+	vector<int> metaData;
+	MPI_Recv(metaData,  
+
+	int data[];
+}
+
+int main(int argc, char **argv)
+{	
+	/* Start up MPI */
+	MPI_Init(&argc, &argv);
+
 	int my_rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
 
 	int p;
     MPI_Comm_size(MPI_COMM_WORLD, &p);
-}
 
-int main(int argc, char **argv)
-{	
-    struct matrix2D *m1 = generateMatrix2D(3, 5);
-    struct matrix2D *m2 = generateMatrix2D(6, 3);
-    
-    /* Start up MPI */
-    MPI_Init(&argc, &argv);
+	if(my_rank == ROOT_RANK)
+	{
+		struct matrix2D *m1 = generateMatrix2D(3, 5);
+		struct matrix2D *m2 = generateMatrix2D(6, 3);
+		
+		//testSerial(m1, m2);
+		multParallel_SendReceive(m1, m2);
+	} else {
+		multParallel_SendReceive(my_rank, p);
+	}
+		
+	if(my_rank == ROOT_RANK)
+	{
+		delete m1;
+		delete m2;
+	}
 
-	//testSerial();
-    testParallel();
-
-    delete m1;
-    delete m2;
-    
 	/* Shut down MPI */
     MPI_Finalize();    
 
